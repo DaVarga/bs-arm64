@@ -9,8 +9,12 @@ The installer is `install/bs-arm64.sh`. It runs on the device (Steam Frame, Stea
 
 - a **Beat Saber 1.44.1** instance, e.g. from BSManager (`~/.local/share/BSManager/BSInstances/1.44.1`)
 - **Proton 11.0 (ARM64)**, the exact version the DLLs were built for
-- the Wine prefix already created: launch any game with it once. The default is BSManager's shared
-  prefix `~/.local/share/BSManager/SharedContent/compatdata`.
+- the Wine prefix already created. The default is BSManager's shared prefix
+  `~/.local/share/BSManager/SharedContent/compatdata`, which Proton creates the first time Beat Saber
+  is launched from BSManager. Other games use their own prefixes, so launching them doesn't help.
+  Check this before running `install`: currently it copies files into the instance before it checks
+  the prefix, and a failed install leaves the instance half changed (run `install` again once the
+  prefix exists, or `uninstall`).
 - the DLLs: either a **release tarball** (unpack it and run `./bs-arm64.sh` from inside it; it uses
   the DLLs next to it), or `out/` from `build.sh` (copy the whole repo to the device, or pass
   `--artifacts DIR`)

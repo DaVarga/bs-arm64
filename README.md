@@ -100,6 +100,16 @@ next to Mods for 1.44.1 instances. That tab downloads the release matching your 
 installs, reinstalls or removes it, with or without mod support. It also re-applies the ARM64 mod
 loader fixes after BSIPA is installed, and sets up the launch environment.
 
+Follow its [Steam Frame guide](https://github.com/DaVarga/bs-manager/blob/bs-arm64/docs/steam-frame.md).
+On a fresh Frame, three things trip people up:
+- Install **Proton 11.0 (ARM64)** (and **Steam Linux Runtime 4.0 for arm64**) from the Steam library
+  (Tools) first; BSManager asks for the Proton folder.
+- Add `DISABLE_VULKAN_FDM_INJECTION_LAYER=1 %command%` as launch command in BSManager. Without it the
+  game hangs at startup (Valve's foveated rendering layer under Proton ARM64).
+- Launch 1.44.1 once before clicking Install in the ARM64 tab. That creates BSManager's Wine prefix.
+  If Install already failed with `Wine prefix … does not exist`, the version is left half changed;
+  launch another version once, then click Install again.
+
 ### By hand
 
 On the Steam Frame, with BSManager, a 1.44.1 instance, and "Proton 11.0 (ARM64)":
