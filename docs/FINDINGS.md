@@ -142,6 +142,9 @@ Symbols for Unity's ARM64 Mono are on Unity's symbol server
   3 ARM64 runs, SteamVR's standby toggled during the restart, and Unity then never recreated its
   eye textures. The headset showed a black window, and the session stayed `SYNCHRONIZED`/`VISIBLE`
   without frames. Runs where the headset was worn were fine, and so was an x64 run.
+  This only happens when the game is started remotely (SSH, scripts) with the headset off; a player
+  starts it with the headset on. For remote tests, put the headset on first, or use the bench
+  plugin's `BS_ARM64_NO_XR_RESTART=1`.
 
 ## Other Frame notes (x64 path, BSManager)
 
