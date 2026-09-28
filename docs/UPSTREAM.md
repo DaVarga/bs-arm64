@@ -6,7 +6,7 @@ what to send where, and what we do until it's fixed.
 | # | Project | Bug | Our workaround | Status |
 |---|---|---|---|---|
 | 1 | MonoMod / BSIPA | No default ABI for Windows ARM64 | rebuilt `MonoMod.Core.dll` | fixed in MonoMod.Core 1.3.4 ([e8e742c](https://github.com/MonoMod/MonoMod/commit/e8e742c397347bb5a65e9ec4b937f9d0dca6fe1c)); BSIPA 4.3.7 still ships 1.3.3 |
-| 2 | Wine (msvcrt) | ARM64 `__CxxFrameHandler3` looks up the unadjusted return address → NULL deref on MSVC code | Microsoft VC++ runtime | cause found and reproduced; not reported |
+| 2 | Wine (msvcrt) | ARM64 `__CxxFrameHandler3` looks up the unadjusted return address → NULL deref on MSVC code | Microsoft VC++ runtime | reported: [bug 60399](https://bugs.winehq.org/show_bug.cgi?id=60399) (analysis and reproducer; no patch from us, WineHQ does not accept LLM-generated code) |
 | 3 | Proton (Wine win32u) | Device callback gets `vkGetDeviceProcAddr`, wineopenxr passes it on as `vkGetInstanceProcAddr` | none shipped (only hit in an experiment) | fixed in Proton experimental/bleeding-edge, not yet in 11.0 stable |
 | 4 | Valve (SteamVR) | `fdm_injection` hangs `vkCreateDevice` for games started through Proton outside Steam; its Vulkan manifest can't load | `DISABLE_VULKAN_FDM_INJECTION_LAYER=1` at launch | [reported](https://github.com/ValveSoftware/SteamVR-for-Linux/issues/972) |
 
@@ -54,8 +54,11 @@ crashes at exactly `ucrtbase+0x40d68`; with Microsoft's `vcruntime140.dll` next 
 caught. Ordinary throw/catch (in the exe, inside the DLL, across the DLL boundary, `catch (...)`) works
 with Wine's runtime. Reproducer: [tools/repro/cxx-eh](../tools/repro/cxx-eh) (`build.sh`, case 5).
 
-- **Fix (untested):** use `get_exception_pc(dispatch)` in that lookup, plus a NULL check.
-- **Report to:** Wine bugzilla (Product Wine, component msvcrt), with the reproducer. Not reported.
+- **Reported:** [Wine bug 60399](https://bugs.winehq.org/show_bug.cgi?id=60399) (component msvcrt),
+  with the reproducer and logs, reproduced on WineHQ master (wine-11.18, native aarch64).
+- **Fix:** use `get_exception_pc(dispatch)` in that lookup, plus a NULL check. Verified with the
+  reproducer on WineHQ master, but left to the Wine developers: WineHQ doesn't accept LLM-generated
+  code, so we don't send a patch.
 - **Until then:** the installer puts Microsoft's ARM64 `vcruntime140*.dll`/`msvcp140.dll` next to the game.
 
 ## 3. Proton wineopenxr: wrong proc address in the device callback
