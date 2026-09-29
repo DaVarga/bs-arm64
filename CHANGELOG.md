@@ -2,6 +2,27 @@
 
 All notable changes to bs-arm64. Each release is built for one Proton build (see its release notes).
 
+## [0.2.1] – 2026-09-30
+
+### Changed
+- Foveated rendering now uses SteamVR's own (Valve's `fdm_injection` layer), the same one Steam turns
+  on for the x64 game, instead of our DXVK implementation. It follows the eyes too and is cheaper:
+  GPU 2.92 vs 3.16 ms and CPU 4.70 vs 5.37 ms per frame compared to 0.2.0's (STARLIGHT, 1776 px per
+  eye, no MSAA). Steam's Foveated Rendering switch turns it on through BSManager v1.6.0-frame.4 or
+  later; by hand, `bs-arm64.sh launch --foveation`. `FDM_DEBUG=enable,med` or `enable,hi` foveates
+  more than Steam's mild default.
+- The installer removes 0.2.0's eye-tracking OpenXR layer from the Wine prefix.
+
+### Removed
+- Our own fixed and eye-tracked foveated rendering (`BS_ARM64_FDM`, `BS_ARM64_FDM_*`) and
+  `XrApiLayer_bs_arm64_gaze.dll`.
+
+### Docs
+- What trips up a first install on a fresh Frame, and a list of upstream bugs we work around
+  ([UPSTREAM.md](docs/UPSTREAM.md)), including why Valve's layer hangs games started outside Steam.
+- AssetBundleLoadingTools' multi-pass mode draws everything twice; check it when copying `UserData`
+  from Windows.
+
 ## [0.2.0] – 2026-09-27
 
 ### Added

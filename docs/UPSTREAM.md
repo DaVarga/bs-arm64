@@ -1,14 +1,14 @@
 # Upstream bugs
 
-Bugs in other projects that bs-arm64 works around. To report once everything runs; each entry says
-what to send where, and what we do until it's fixed.
+Bugs in other projects that bs-arm64 works around: what we do until they're fixed, and where they're
+reported.
 
 | # | Project | Bug | Our workaround | Status |
 |---|---|---|---|---|
 | 1 | MonoMod / BSIPA | No default ABI for Windows ARM64 | rebuilt `MonoMod.Core.dll` | fixed in MonoMod.Core 1.3.4 ([e8e742c](https://github.com/MonoMod/MonoMod/commit/e8e742c397347bb5a65e9ec4b937f9d0dca6fe1c)); BSIPA 4.3.7 still ships 1.3.3 |
 | 2 | Wine (msvcrt) | ARM64 `__CxxFrameHandler3` looks up the unadjusted return address → NULL deref on MSVC code | Microsoft VC++ runtime | reported: [bug 60399](https://bugs.winehq.org/show_bug.cgi?id=60399) (analysis and reproducer; no patch from us, WineHQ does not accept LLM-generated code) |
 | 3 | Proton (Wine win32u) | Device callback gets `vkGetDeviceProcAddr`, wineopenxr passes it on as `vkGetInstanceProcAddr` | none shipped (only hit in an experiment) | fixed in Proton experimental/bleeding-edge, not yet in 11.0 stable |
-| 4 | Valve (SteamVR) | `fdm_injection` hangs `vkCreateDevice` when only its implicit OpenXR half is active (games started outside Steam); its Vulkan manifest can't load | set the layer's variables as Steam does, or `DISABLE_VULKAN_FDM_INJECTION_LAYER=1` | [reported](https://github.com/ValveSoftware/SteamVR-for-Linux/issues/972); report needs the correction below |
+| 4 | Valve (SteamVR) | `fdm_injection` hangs `vkCreateDevice` when only its implicit OpenXR half is active (games started outside Steam); its Vulkan manifest can't load | set the layer's variables as Steam does, or `DISABLE_VULKAN_FDM_INJECTION_LAYER=1` | [reported](https://github.com/ValveSoftware/SteamVR-for-Linux/issues/972) |
 
 ## 1. MonoMod: no default ABI on Windows ARM64
 
@@ -101,7 +101,5 @@ Also, `/usr/share/vulkan/explicit_layer.d/VkLayer_VALVE_fdm_injection.json` name
 'vkGetInstanceProcAddr' in layer "libVkLayer_VALVE_fdm_injection.so"`. In the game it works anyway.
 
 - **Reported:** [ValveSoftware/SteamVR-for-Linux#972](https://github.com/ValveSoftware/SteamVR-for-Linux/issues/972).
-  The report says outside Steam the layer always hangs; it needs a comment with the finding above
-  (it hangs only when the OpenXR half runs without the Vulkan half).
 - **Until then:** launch with the two variables for foveated rendering, or with
   `DISABLE_VULKAN_FDM_INJECTION_LAYER=1` without it. `bs-arm64.sh launch` does that (`--foveation`).

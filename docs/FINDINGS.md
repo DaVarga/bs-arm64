@@ -182,10 +182,10 @@ Symbols for Unity's ARM64 Mono are on Unity's symbol server
 
 - **Burst.** `lib_burst_generated.dll` is x64, and Burst jobs fall back to Mono. An ARM64 Burst library
   would need Unity's Burst compiler run for the game's assemblies; not attempted.
-- **Wine's ARM64 C++ EH bug.** Report it upstream with a minimal repro. Once fixed, the Microsoft
-  runtime isn't needed any more.
-- **MonoMod upstream.** Send the Windows ARM64 default-ABI fix to MonoMod. Until then, the installer
-  swaps in a rebuilt `MonoMod.Core.dll`.
-- **SiraUtil XR restart vs. standby.** Look into why Unity doesn't recreate the eye textures when
-  the headset goes into standby during SiraUtil's XR restart.
+- **Wine's ARM64 C++ EH bug.** Reported as [Wine bug 60399](https://bugs.winehq.org/show_bug.cgi?id=60399).
+  Once fixed, the Microsoft runtime isn't needed any more.
+- **MonoMod.** The Windows ARM64 default ABI is fixed in MonoMod.Core 1.3.4. BSIPA 4.3.7 still ships
+  1.3.3, so the installer swaps in a rebuilt `MonoMod.Core.dll`.
+- **SiraUtil XR restart vs. standby.** Why Unity doesn't recreate the eye textures when the headset
+  goes into standby during SiraUtil's XR restart isn't investigated.
 - **LIV.** Capture needs a real ARM64 `LIV_Bridge.dll` from LIV; the stub only stops the errors.
