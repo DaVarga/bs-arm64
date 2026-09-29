@@ -13,9 +13,11 @@
 #       (then the game always starts without mods).
 #   bs-arm64.sh uninstall <instance>
 #       Restore the x64 files from the backup.
-#   bs-arm64.sh launch    <instance> [--no-mods] [--prefix DIR] [--proton DIR] [--debug]
+#   bs-arm64.sh launch    <instance> [--no-mods] [--foveation] [--prefix DIR] [--proton DIR] [--debug]
 #       Start the game through Proton with the environment it needs.
 #       --no-mods: start without mods (BSIPA isn't loaded) this time.
+#       --foveation: SteamVR's (eye-tracked) foveated rendering, as Steam's "Foveated Rendering"
+#       switch does; FDM_DEBUG=enable,hi (or lo, med) picks a stronger or weaker preset.
 #
 # Defaults: --artifacts = this script's directory in a release, else ../out (build.sh output),
 #           --cache     = ~/.cache/bs-arm64,
@@ -36,6 +38,7 @@ PREFIX=$HOME/.local/share/BSManager/SharedContent/compatdata
 PROTON="$HOME/.steam/steam/steamapps/common/Proton 11.0 (ARM64)"
 DEBUG=0
 MODS=1
+FOVEATION=0
 
 BS_APP_ID=620980
 SUPPORTED_GAME_VERSION=$GAME_VERSION
@@ -56,7 +59,8 @@ parse_opts() {
             --proton) PROTON=$2; shift 2 ;;
             --debug) DEBUG=1; shift ;;
             --no-mods) MODS=0; shift ;;
-            -h|--help) sed -n '2,23p' "$0"; exit 0 ;;
+            --foveation) FOVEATION=1; shift ;;
+            -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
             *) POSITIONAL+=("$1"); shift ;;
         esac
     done
@@ -213,22 +217,6 @@ setup_prefix() {
    }
 }
 EOF
-    # Eye-tracked foveation: an implicit OpenXR layer that only loads when BS_ARM64_FDM is set
-    cp "$ARTIFACTS/XrApiLayer_bs_arm64_gaze.dll" "$rt/"
-    cat > "$rt/XrApiLayer_bs_arm64_gaze.json" <<'EOF'
-{
-   "file_format_version": "1.0.0",
-   "api_layer": {
-      "name": "XR_APILAYER_bs_arm64_gaze",
-      "library_path": "C:\\bs-arm64\\XrApiLayer_bs_arm64_gaze.dll",
-      "api_version": "1.1",
-      "implementation_version": "1",
-      "description": "Eye-tracked foveation centers for DXVK (bs-arm64)",
-      "enable_environment": "BS_ARM64_FDM",
-      "disable_environment": "BS_ARM64_NO_GAZE"
-   }
-}
-EOF
     proton_version > "$rt/proton-version"
 
     # Our openxr_loader.dll prefers ActiveRuntimeARM64 over Proton's ActiveRuntime
@@ -239,10 +227,15 @@ EOF
         timeout 180 "$PROTON/files/bin-arm64/wine" reg add 'HKLM\Software\Khronos\OpenXR\1' \
         /v ActiveRuntimeARM64 /t REG_SZ /d 'C:\bs-arm64\wineopenxr_a64.json' /f >/dev/null ||
         die "setting the OpenXR runtime in the Wine prefix failed or timed out"
-    PATH="$PROTON/files/bin-arm64:$PATH" WINEPREFIX=$pfx WINEDEBUG=-all \
-        timeout 180 "$PROTON/files/bin-arm64/wine" reg add 'HKLM\Software\Khronos\OpenXR\1\ApiLayers\Implicit' \
-        /v 'C:\bs-arm64\XrApiLayer_bs_arm64_gaze.json' /t REG_DWORD /d 0 /f >/dev/null ||
-        die "registering the OpenXR layer in the Wine prefix failed or timed out"
+    # Up to 0.2.0 our own eye-tracking layer (for our DXVK foveation) was registered here; Valve's
+    # fdm_injection layer replaces both.
+    if [ -f "$rt/XrApiLayer_bs_arm64_gaze.json" ]; then
+        log "removing the old bs-arm64 eye-tracking layer"
+        PATH="$PROTON/files/bin-arm64:$PATH" WINEPREFIX=$pfx WINEDEBUG=-all \
+            timeout 180 "$PROTON/files/bin-arm64/wine" reg delete 'HKLM\Software\Khronos\OpenXR\1\ApiLayers\Implicit' \
+            /v 'C:\bs-arm64\XrApiLayer_bs_arm64_gaze.json' /f >/dev/null 2>&1 || true
+        rm -f "$rt/XrApiLayer_bs_arm64_gaze.json" "$rt/XrApiLayer_bs_arm64_gaze.dll"
+    fi
     PATH="$PROTON/files/bin-arm64:$PATH" WINEPREFIX=$pfx \
         timeout 60 "$PROTON/files/bin-arm64/wineserver" -w ||
         die "Wine in $pfx did not shut down; restart the device and try again"
@@ -270,7 +263,7 @@ cmd_install() {
         *) die "Proton is $(proton_version), but these DLLs were built for $PROTON_TAG; rebuild them (docs/BUILD.md)" ;;
     esac
     for f in lsteamclient_a64.dll wineopenxr_a64.dll steam_api64.dll openxr_loader.dll dxgi.dll d3d11.dll MonoPosixHelper.dll \
-             LIV_Bridge.dll XrApiLayer_bs_arm64_gaze.dll; do
+             LIV_Bridge.dll; do
         [ -f "$ARTIFACTS/$f" ] || die "$ARTIFACTS/$f missing; run build.sh first (or pass --artifacts)"
     done
     require_prefix_idle
@@ -372,9 +365,15 @@ cmd_launch() {
         STEAM_COMPAT_CLIENT_INSTALL_PATH="$HOME/.steam/steam"
         WINEDLLPATH="$rt"
         WINEDLLOVERRIDES="winhttp=$winhttp"
-        # Valve's fdm_injection layer spins forever in vkCreateDevice under Proton ARM64
-        DISABLE_VULKAN_FDM_INJECTION_LAYER=1
     )
+    # Valve's foveated rendering (fdm_injection): its OpenXR half is an implicit layer, its Vulkan
+    # half must be enabled explicitly, as Steam does for "Foveated Rendering". With only the
+    # OpenXR half active, vkCreateDevice hangs, so without --foveation turn both off.
+    if [ "$FOVEATION" = 1 ]; then
+        env+=(FDM_DEBUG="${FDM_DEBUG:-enable}" VK_INSTANCE_LAYERS=VK_LAYER_VALVE_rpo:VK_LAYER_VALVE_fdm_injection)
+    else
+        env+=(DISABLE_VULKAN_FDM_INJECTION_LAYER=1)
+    fi
     if [ "$DEBUG" = 1 ]; then
         env+=(STEAMAPI_ARM64_LOG=1 XR_LOADER_DEBUG=all DXVK_LOG_LEVEL=info
               WINEDEBUG=+loaddll,err,warn+openxr,warn+module,+debugstr)
@@ -385,7 +384,7 @@ cmd_launch() {
     echo "pid $!"
 }
 
-[ $# -ge 1 ] || { sed -n '2,23p' "$0"; exit 1; }
+[ $# -ge 1 ] || { sed -n '2,25p' "$0"; exit 1; }
 CMD=$1; shift
 parse_opts "$@"
 case $CMD in
@@ -393,6 +392,6 @@ case $CMD in
     install) cmd_install ;;
     uninstall) cmd_uninstall ;;
     launch) cmd_launch ;;
-    -h|--help|help) sed -n '2,23p' "$0" ;;
+    -h|--help|help) sed -n '2,25p' "$0" ;;
     *) die "unknown command $CMD" ;;
 esac

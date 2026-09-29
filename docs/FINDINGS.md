@@ -111,11 +111,27 @@ Measured with BeatLeader replays (Monday Not Sick Anymore and STARLIGHT, Expert+
   (STARLIGHT replay, 2160, 120 Hz, camera pinned). The picture is unchanged.
 - **Fixed foveated rendering** (`BS_ARM64_FDM=1`, default profile) on top of that: GPU time 4.8 →
   4.2–4.3 ms, GPU rail 2.97 → 2.40–2.44 W, system power 16.7 → 15.4–15.6 W (two runs). Without MSAA,
-  foveation saved less (4.7 → 4.5 ms). SteamVR's own foveation (`XR_FB_foveation`) would need the eye
-  images created through OpenXR; Valve's `fdm_injection` layer targets Android and doesn't apply.
+  foveation saved less (4.7 → 4.5 ms). (We assumed Valve's `fdm_injection` layer couldn't apply here;
+  it can, see below.)
 - **Eye-tracked foveated rendering** (sharp radius 0.15 around SteamVR's foveation centers, per-eye
   maps): GPU time 3.67/3.62 ms vs 4.18 ms fixed, GPU rail 1.83 vs 2.49 W, system power 14.3 vs 15.6 W,
   in alternating runs with the headset off (static gaze). App CPU and frame pacing unchanged.
+- **Valve's `fdm_injection` layer vs. ours** (bs-arm64 0.2.0, minimal mods, STARLIGHT, 1776 px per
+  eye, no MSAA, window 320×200, headset off, one run each):
+
+  | | GPU / frame | CPU / frame | System | GPU rail |
+  |---|---|---|---|---|
+  | no FDM | 3.83 ms | 5.28 ms | 17.7 W | 2.16 W |
+  | ours (0006) | 3.16 ms | 5.37 ms | 15.7 W | 1.50 W |
+  | Valve, default | 2.92 ms | 4.70 ms | 15.7 W | 1.46 W |
+  | Valve, `med` | 2.90 ms | 4.64 ms | 15.6 W | 1.45 W |
+  | Valve, `hi` | 2.64 ms | 4.62 ms | 15.2 W | 1.26 W |
+
+  Ours costs CPU for writing the density maps at record time; Valve's doesn't. The no-FDM run came
+  first, with the device hotter (85 °C vs. 77 °C). Our FDM, the gaze layer and patches 0004/0006 were
+  removed after this.
+- An earlier try with Valve's layer (`FDM_DEBUG=1`) only got as far as `added swapchain size`: the
+  layer's switch is `FDM_DEBUG=enable`, and with `1` it never created density maps.
 - **GC** didn't cause hitches: the managed heap grew from 318 to 361 MB during the song and was
   never collected.
 - The remaining hitches (13–18 ms, 13–25 per song) show the main thread busy in game and mod code.
@@ -145,12 +161,19 @@ Symbols for Unity's ARM64 Mono are on Unity's symbol server
   This only happens when the game is started remotely (SSH, scripts) with the headset off; a player
   starts it with the headset on. For remote tests, put the headset on first, or use the bench
   plugin's `BS_ARM64_NO_XR_RESTART=1`.
+- AssetBundleLoadingTools' "Enable Multi-Pass Rendering" switches Unity's OpenXR render mode to
+  MultiPass (Player.log: `Render Mode: MultiPass`). The eye pass is then two single-layer passes
+  without MSAA, and 0.2.0's foveated rendering, which looked for the 2-layer eye texture, never turned on.
+  It came over with a `UserData` copy from a Windows install.
 
 ## Other Frame notes (x64 path, BSManager)
 
-- Valve's implicit `XR_APILAYER_VALVE_fdm_injection` / `VK_LAYER_VALVE_fdm_injection` spins forever
-  in a `strcmp` loop during `vkCreateDevice`. `perf` showed about 85 % of time in
-  `libVkLayer_VALVE_fdm_injection.so`. `DISABLE_VULKAN_FDM_INJECTION_LAYER=1` avoids it.
+- Valve's implicit `XR_APILAYER_VALVE_fdm_injection` spins forever in a `strcmp` loop during
+  `vkCreateDevice` when a game is started outside Steam. `perf` showed about 85 % of time in
+  `libVkLayer_VALVE_fdm_injection.so`. Steam sets `FDM_DEBUG=enable` and
+  `VK_INSTANCE_LAYERS=VK_LAYER_VALVE_rpo:VK_LAYER_VALVE_fdm_injection` when a game's Foveated Rendering
+  switch is on; with those it runs (x64 and ARM64). `DISABLE_VULKAN_FDM_INJECTION_LAYER=1` turns it off
+  instead.
 - Mod "Enhancements" 3.0.18 hangs 1.40.8 on the Frame while loading the main menu.
 - `wine-mono` exists only for x86/x64. BSIPA's `IPA.exe` must run as a 32-bit x86 process under ARM64
   Proton (set `32BITREQUIRED` in the CLR header).

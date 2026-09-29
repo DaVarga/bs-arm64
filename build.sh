@@ -212,12 +212,8 @@ step_dxvk() {
         git -C "$src/subprojects/dxbc-spirv" apply "$ROOT/patches/dxvk/0002-dxbc-spirv-missing-include.patch"
     git -C "$src" apply --check "$ROOT/patches/dxvk/0003-discard-resolved-msaa.patch" 2>/dev/null &&
         git -C "$src" apply "$ROOT/patches/dxvk/0003-discard-resolved-msaa.patch"
-    git -C "$src" apply --check "$ROOT/patches/dxvk/0004-fixed-foveation.patch" 2>/dev/null &&
-        git -C "$src" apply "$ROOT/patches/dxvk/0004-fixed-foveation.patch"
     git -C "$src" apply --check "$ROOT/patches/dxvk/0005-keep-loaded-msaa-targets.patch" 2>/dev/null &&
         git -C "$src" apply "$ROOT/patches/dxvk/0005-keep-loaded-msaa-targets.patch"
-    git -C "$src" apply --check "$ROOT/patches/dxvk/0006-eye-tracked-foveation.patch" 2>/dev/null &&
-        git -C "$src" apply "$ROOT/patches/dxvk/0006-eye-tracked-foveation.patch"
     cat > "$OBJ/dxvk-cross-aarch64.txt" <<EOF
 [binaries]
 c = '$CC'
@@ -266,12 +262,6 @@ step_liv_bridge() {
     $CC -shared -Os -s -o "$OUT/LIV_Bridge.dll" "$ROOT/src/liv-bridge/liv_bridge.c"
 }
 
-# OpenXR API layer that hands SteamVR's eye-tracked foveation centers to DXVK (patches/dxvk/0006).
-step_gaze_layer() {
-    log "XrApiLayer_bs_arm64_gaze.dll"
-    $CC -shared -O2 -s -Wall -I"$DEPS/OpenXR-SDK/include" -o "$OUT/XrApiLayer_bs_arm64_gaze.dll" \
-        "$ROOT/src/gaze-layer/gaze_layer.c"
-}
 
 # Harmony (via MonoMod.Core) has no default ABI for Windows ARM64 and refuses to patch.
 # Rebuild the exact MonoMod.Core that BSIPA ships with the one-line ABI fix.
@@ -296,8 +286,7 @@ step_monomod() {
 
 # The DLLs a release ships; the installer needs all of them.
 RELEASE_DLLS=(lsteamclient_a64.dll wineopenxr_a64.dll steam_api64.dll openxr_loader.dll dxgi.dll d3d11.dll
-              MonoPosixHelper.dll winhttp.dll MonoMod.Core.dll LIV_Bridge.dll
-              XrApiLayer_bs_arm64_gaze.dll)
+              MonoPosixHelper.dll winhttp.dll MonoMod.Core.dll LIV_Bridge.dll)
 
 # Release tarball in dist/: the DLLs, the installer and its helpers, docs, the upstream
 # licenses, and SOURCES.md (where the corresponding source is, for the LGPL parts).
@@ -439,7 +428,7 @@ EOF
 }
 
 ALL=(toolchain fetch wine-tools lsteamclient wineopenxr steam-api openxr-loader dxvk monoposixhelper doorstop monomod
-     liv-bridge gaze-layer)
+     liv-bridge)
 STEPS=("$@")
 [ ${#STEPS[@]} -eq 0 ] && STEPS=("${ALL[@]}")
 for s in "${STEPS[@]}"; do

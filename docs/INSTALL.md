@@ -103,7 +103,9 @@ install/bs-arm64.sh launch  <instance> --no-mods   # start once without mods (in
 `launch` runs `proton run "Beat Saber.exe"` with the usual Steam and Proton variables plus:
 
 - `WINEDLLPATH=<prefix>/pfx/drive_c/bs-arm64`
-- `DISABLE_VULKAN_FDM_INJECTION_LAYER=1`
+- `DISABLE_VULKAN_FDM_INJECTION_LAYER=1`, or with `--foveation` Valve's foveated rendering:
+  `FDM_DEBUG=enable` (keeps a preset you set, e.g. `FDM_DEBUG=enable,hi`) and
+  `VK_INSTANCE_LAYERS=VK_LAYER_VALVE_rpo:VK_LAYER_VALVE_fdm_injection`
 - `WINEDLLOVERRIDES=winhttp=n,b`: BSIPA's Doorstop, if present
 - `DISPLAY=:0` and `XDG_RUNTIME_DIR`, only if unset (e.g. started over SSH). Without a display, the
   player hangs silently right after start.

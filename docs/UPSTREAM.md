@@ -8,7 +8,7 @@ what to send where, and what we do until it's fixed.
 | 1 | MonoMod / BSIPA | No default ABI for Windows ARM64 | rebuilt `MonoMod.Core.dll` | fixed in MonoMod.Core 1.3.4 ([e8e742c](https://github.com/MonoMod/MonoMod/commit/e8e742c397347bb5a65e9ec4b937f9d0dca6fe1c)); BSIPA 4.3.7 still ships 1.3.3 |
 | 2 | Wine (msvcrt) | ARM64 `__CxxFrameHandler3` looks up the unadjusted return address → NULL deref on MSVC code | Microsoft VC++ runtime | reported: [bug 60399](https://bugs.winehq.org/show_bug.cgi?id=60399) (analysis and reproducer; no patch from us, WineHQ does not accept LLM-generated code) |
 | 3 | Proton (Wine win32u) | Device callback gets `vkGetDeviceProcAddr`, wineopenxr passes it on as `vkGetInstanceProcAddr` | none shipped (only hit in an experiment) | fixed in Proton experimental/bleeding-edge, not yet in 11.0 stable |
-| 4 | Valve (SteamVR) | `fdm_injection` hangs `vkCreateDevice` for games started through Proton outside Steam; its Vulkan manifest can't load | `DISABLE_VULKAN_FDM_INJECTION_LAYER=1` at launch | [reported](https://github.com/ValveSoftware/SteamVR-for-Linux/issues/972) |
+| 4 | Valve (SteamVR) | `fdm_injection` hangs `vkCreateDevice` when only its implicit OpenXR half is active (games started outside Steam); its Vulkan manifest can't load | set the layer's variables as Steam does, or `DISABLE_VULKAN_FDM_INJECTION_LAYER=1` | [reported](https://github.com/ValveSoftware/SteamVR-for-Linux/issues/972); report needs the correction below |
 
 ## 1. MonoMod: no default ABI on Windows ARM64
 
@@ -85,16 +85,23 @@ The implicit OpenXR layer `XR_APILAYER_VALVE_fdm_injection`
 (`/usr/share/openxr/1/api_layers/implicit.d/XrApiLayer_VALVE_fdm_injection.json`) is active for every
 OpenXR app unless `DISABLE_VULKAN_FDM_INJECTION_LAYER` is set. A D3D11 OpenXR game started through
 Proton outside the Steam client (BSManager, scripts) then hangs forever creating its device: Beat Saber
-stops at `GfxDevice: creating device client` (> 7 minutes, x64 and ARM64 builds alike). From Steam it
-works, presumably because Steam sets the variable. Reproduced on SteamOS stable (20260922.6101926,
-SteamVR r25358740) and beta (20260925.6191901, SteamVR r25513384).
+stops at `GfxDevice: creating device client` (> 7 minutes, x64 and ARM64 builds alike). Reproduced on
+SteamOS stable (20260922.6101926, SteamVR r25358740) and beta (20260925.6191901, SteamVR r25513384).
+
+Steam doesn't set `DISABLE_VULKAN_FDM_INJECTION_LAYER`, as we first assumed. With a game's
+**Foveated Rendering** switch on, it sets `FDM_DEBUG=enable` and
+`VK_INSTANCE_LAYERS=VK_LAYER_VALVE_rpo:VK_LAYER_VALVE_fdm_injection` (checked in retail Beat Saber's
+environment). With those two, a launch outside Steam works too, x64 and ARM64, and the layer creates its
+density maps. So the hang happens when the OpenXR half is active and the Vulkan half isn't.
 
 Also, `/usr/share/vulkan/explicit_layer.d/VkLayer_VALVE_fdm_injection.json` names
 `libVkLayer_VALVE_fdm_injection.so`, but that library exports its entry points with a prefix
 (`fdm_injection_GetInstanceProcAddr`, `fdm_injection_GetDeviceProcAddr`) and the manifest has no
-`functions` mapping. Enabling the layer by name fails: `Failed to find 'vkGetInstanceProcAddr' in
-layer "libVkLayer_VALVE_fdm_injection.so"`.
+`functions` mapping. Enabling the layer by name in `vulkaninfo` fails: `Failed to find
+'vkGetInstanceProcAddr' in layer "libVkLayer_VALVE_fdm_injection.so"`. In the game it works anyway.
 
 - **Reported:** [ValveSoftware/SteamVR-for-Linux#972](https://github.com/ValveSoftware/SteamVR-for-Linux/issues/972).
-- **Until then:** launch with `DISABLE_VULKAN_FDM_INJECTION_LAYER=1`. BSManager sets it for ARM64
-  instances only, so its x64 launches on the Frame still hang.
+  The report says outside Steam the layer always hangs; it needs a comment with the finding above
+  (it hangs only when the OpenXR half runs without the Vulkan half).
+- **Until then:** launch with the two variables for foveated rendering, or with
+  `DISABLE_VULKAN_FDM_INJECTION_LAYER=1` without it. `bs-arm64.sh launch` does that (`--foveation`).

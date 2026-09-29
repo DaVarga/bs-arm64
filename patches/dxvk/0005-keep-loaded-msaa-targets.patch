@@ -1,8 +1,8 @@
 diff --git a/src/dxvk/dxvk_context.cpp b/src/dxvk/dxvk_context.cpp
-index 92aed804d..49287f270 100644
+index dda81cdd8..bbd5c6a60 100644
 --- a/src/dxvk/dxvk_context.cpp
 +++ b/src/dxvk/dxvk_context.cpp
-@@ -5669,6 +5669,9 @@ namespace dxvk {
+@@ -5667,6 +5667,9 @@ namespace dxvk {
        if (colorTarget.view != nullptr) {
          colorFormats[i] = colorTarget.view->info().format;
  
@@ -12,7 +12,7 @@ index 92aed804d..49287f270 100644
          colorInfo.imageView = colorTarget.view->handle();
          colorInfo.imageLayout = colorTarget.view->getLayout();
          colorInfo.loadOp = ops.colorOps[i].loadOp;
-@@ -5716,6 +5719,9 @@ namespace dxvk {
+@@ -5714,6 +5717,9 @@ namespace dxvk {
  
      if (depthTarget.view) {
        depthStencilFormat = depthTarget.view->info().format;
@@ -22,7 +22,7 @@ index 92aed804d..49287f270 100644
        depthStencilAspects = depthTarget.view->info().aspects;
        depthStencilWritable = vk::getWritableAspectsForLayout(depthTarget.view->info().layout);
  
-@@ -5858,17 +5864,33 @@ namespace dxvk {
+@@ -5848,17 +5854,33 @@ namespace dxvk {
      auto& rendering = m_state.om.renderingInfo.rendering;
      bool resolved = false;
  
@@ -60,7 +60,7 @@ index 92aed804d..49287f270 100644
        if (rendering.pDepthAttachment)
          m_state.om.renderingInfo.depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
        if (rendering.pStencilAttachment)
-@@ -5877,6 +5899,24 @@ namespace dxvk {
+@@ -5867,6 +5889,24 @@ namespace dxvk {
    }
  
  
@@ -82,11 +82,11 @@ index 92aed804d..49287f270 100644
 +  }
 +
 +
-   // bs-arm64 (BS_ARM64_FDM=1): fixed foveated rendering for the game's stereo eye pass, i.e. a square
-   // 2-layer render target of at least 1024 px. One fragment density map for both eyes: full density
-   // within BS_ARM64_FDM_INNER (0.30, fraction of the width) of BS_ARM64_FDM_CX/CY (0.5/0.59, the
+   void DxvkContext::renderPassUnbindFramebuffer() {
+     if (m_flags.test(DxvkContextFlag::GpRenderPassSecondaryCmd)) {
+       m_flags.clr(DxvkContextFlag::GpRenderPassSecondaryCmd);
 diff --git a/src/dxvk/dxvk_context.h b/src/dxvk/dxvk_context.h
-index 70f4f6f77..a5acd8c23 100644
+index 4429bfbdd..9f5c0773e 100644
 --- a/src/dxvk/dxvk_context.h
 +++ b/src/dxvk/dxvk_context.h
 @@ -1,5 +1,7 @@
@@ -100,12 +100,12 @@ index 70f4f6f77..a5acd8c23 100644
 @@ -1672,6 +1674,11 @@ namespace dxvk {
  
      void discardResolvedMultisampleTargets();
- 
+     
 +    void keepLoadedMultisampleTarget(const DxvkImage& image);
 +
 +    enum class MsaaDiscard : uint8_t { Discarded, Keep };
 +    std::unordered_map<VkImage, MsaaDiscard> m_msaaDiscards;
 +
-     // bs-arm64: fixed foveated rendering (BS_ARM64_FDM=1)
-     Rc<DxvkImage> m_fdmImage;
-     VkImageView   m_fdmView = VK_NULL_HANDLE;
+     void resetRenderPassOps(
+       const DxvkRenderTargets&    renderTargets,
+             DxvkRenderPassOps&    renderPassOps);

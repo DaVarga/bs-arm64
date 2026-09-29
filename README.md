@@ -44,19 +44,28 @@ Frame's tiled GPU. In v0.1.6 it also caused frozen ghost images of the menu and 
 ## Foveated rendering (optional)
 
 With foveated rendering the Frame's GPU renders the area you look at in full resolution and the edges
-at lower resolution. To turn it on, open Beat Saber in your **Steam** library → ⚙ → **Properties** →
-**Performance** → **Foveated Rendering**. BSManager reads that switch when it starts the game. With a
-manual install, start the game with `BS_ARM64_FDM=1` instead. With SteamVR's eye tracking the
-sharp area follows your eyes, otherwise it stays around the lens centers.
+at lower resolution. bs-arm64 uses SteamVR's own foveated rendering (Valve's `fdm_injection` layer),
+the same one Steam turns on for the x64 game with **Properties** → **Performance** → **Foveated
+Rendering**. With SteamVR's eye tracking the sharp area follows your eyes.
 
-| STARLIGHT replay, 2160, 120 Hz | GPU / frame | System power |
-|---|---|---|
-| off | 4.8 ms | 16.7 W |
-| fixed | 4.2 ms | 15.6 W |
-| eye-tracked | 3.6 ms | 14.3 W |
+By hand, start the game with `bs-arm64.sh launch --foveation`. That sets what Steam sets:
+`FDM_DEBUG=enable` and `VK_INSTANCE_LAYERS=VK_LAYER_VALVE_rpo:VK_LAYER_VALVE_fdm_injection`. Steam's
+default is mild; `FDM_DEBUG=enable,med` or `FDM_DEBUG=enable,hi` saves more and is easier to notice.
+BSManager's ARM64 tab doesn't set these yet.
 
-Radius, densities and the gaze correction are set with `BS_ARM64_FDM_*` variables, see
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#graphics-dxvk).
+| STARLIGHT replay, 1776 px per eye, no MSAA, 120 Hz | GPU / frame | CPU / frame | System power |
+|---|---|---|---|
+| off | 3.83 ms | 5.28 ms | 17.7 W |
+| default | 2.92 ms | 4.70 ms | 15.7 W |
+| `hi` | 2.64 ms | 4.62 ms | 15.2 W |
+
+One run each, headset off (no eye movement). bs-arm64 0.2.0's own foveated rendering got 3.16 ms GPU
+and 5.37 ms CPU in the same test, so it was removed.
+
+AssetBundleLoadingTools' **Enable Multi-Pass Rendering** (Mod Settings, or `EnableMultiPassRendering`
+in `UserData/AssetBundleLoadingTools.json`) makes the game draw everything twice, once per eye. It
+also kept 0.2.0's foveated rendering off; Valve's layer hasn't been tried with it. Check it when you
+copy `UserData` over from a Windows install.
 
 ## What works
 
@@ -105,7 +114,10 @@ On a fresh Frame, three things trip people up:
 - Install **Proton 11.0 (ARM64)** (and **Steam Linux Runtime 4.0 for arm64**) from the Steam library
   (Tools) first; BSManager asks for the Proton folder.
 - Add `DISABLE_VULKAN_FDM_INJECTION_LAYER=1 %command%` as launch command in BSManager. Without it the
-  game hangs at startup (Valve's foveated rendering layer under Proton ARM64).
+  game hangs at startup: Valve's foveated rendering layer is half on outside Steam. For foveated
+  rendering in the x64 game, use
+  `FDM_DEBUG=enable VK_INSTANCE_LAYERS=VK_LAYER_VALVE_rpo:VK_LAYER_VALVE_fdm_injection %command%`
+  instead.
 - Launch 1.44.1 once before clicking Install in the ARM64 tab. That creates BSManager's Wine prefix.
   If Install already failed with `Wine prefix … does not exist`, the version is left half changed;
   launch another version once, then click Install again.
