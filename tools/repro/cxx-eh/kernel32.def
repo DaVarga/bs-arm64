@@ -1,9 +1,0 @@
-LIBRARY kernel32.dll
-EXPORTS
-GetStdHandle
-WriteFile
-CreateFileA
-SetFilePointer
-CloseHandle
-GetCommandLineA
-ExitProcess

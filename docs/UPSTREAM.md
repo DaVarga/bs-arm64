@@ -55,7 +55,7 @@ with a local destructor object that ends with a call to a `noreturn` throw helpe
 after the call to match MSVC's layout, called from a `try`/`catch` in the exe. With Wine's runtime it
 crashes at exactly `ucrtbase+0x40d68`; with Microsoft's `vcruntime140.dll` next to it the exception is
 caught. Ordinary throw/catch (in the exe, inside the DLL, across the DLL boundary, `catch (...)`) works
-with Wine's runtime. Reproducer: [tools/repro/cxx-eh](../tools/repro/cxx-eh) (`build.sh`, case 5).
+with Wine's runtime. The reproducer is attached to the Wine bug below.
 
 - **Reported:** [Wine bug 60399](https://bugs.winehq.org/show_bug.cgi?id=60399) (component msvcrt),
   with the reproducer and logs, reproduced on WineHQ master (wine-11.18, native aarch64).
