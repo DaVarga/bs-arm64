@@ -5,8 +5,9 @@
 > installs it with one click.
 > **[How to install on the Steam Frame](https://github.com/DaVarga/bs-manager/blob/bs-arm64/docs/steam-frame.md)**
 
-Run Beat Saber 1.44.1 as a **native Windows ARM64** program on ARM64 Linux under Proton, tested on the
-**Steam Frame**, instead of emulating the x64 build with FEX.
+Run Beat Saber as a **native Windows ARM64** program on ARM64 Linux under Proton, tested on the
+**Steam Frame**, instead of emulating the x64 build with FEX. Any game build on the same Unity engine
+(6000.0.40f1) works, which today means 1.42.x through 1.44.1; the benchmarks below are from 1.44.1.
 
 The game's engine and C# code both run natively. Only Proton's small `steam.exe` launcher stays x64.
 
@@ -77,7 +78,7 @@ copy `UserData` over from a Windows install.
 | Burst-compiled code | ⚠️ x64 `lib_burst_generated.dll` can't load; Unity falls back to managed code |
 | LIV mixed-reality capture | ❌ not available (a stub `LIV_Bridge.dll` reports "no capture") |
 | Mods: BSIPA 4.3.7 + Harmony (tested: SiraUtil, BSML, SongCore, BS Utils) | ✅ with the ARM64 Doorstop + patched MonoMod.Core |
-| Other game versions | ❌ only 1.44.1 (Unity 6000.0.40f1) |
+| Game versions | ✅ any build on Unity 6000.0.40f1 (1.42.x through 1.44.1); other engines unsupported |
 
 ## How it works
 
@@ -124,7 +125,8 @@ On a fresh Frame, three things trip people up:
 
 ### By hand
 
-On the Steam Frame, with BSManager, a 1.44.1 instance, and "Proton 11.0 (ARM64)":
+On the Steam Frame, with BSManager, a Unity 6000.0.40f1 instance (1.42.x or 1.44.1), and
+"Proton 11.0 (ARM64)" (the install guard checks the instance's Unity engine, not its game version):
 
 Download the release tarball that matches your Proton version (`<Proton dir>/version`) from the
 [releases page](https://github.com/DaVarga/bs-arm64/releases), then on the Frame:
@@ -151,6 +153,7 @@ See [docs/INSTALL.md](docs/INSTALL.md) for every file that gets touched.
 
 > **Status:** verified end to end on the Frame. A clean `build.sh` output was installed with
 > `install/bs-arm64.sh` into a fresh copy of a BSManager 1.44.1 instance: Steam, VR and maps all work.
+> The same runtime also installs on 1.42.x instances, since they share the 6000.0.40f1 engine.
 
 ## Docs
 
