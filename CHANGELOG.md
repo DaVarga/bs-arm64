@@ -2,6 +2,30 @@
 
 All notable changes to bs-arm64. Each release is built for one Proton build (see its release notes).
 
+## [0.2.2] – 2026-10-04
+
+### Changed
+- The C++ runtime next to the game is now Wine's own, built from the matching Proton source with
+  Wine's fix for the ARM64 exception-handling crash ([bug 60399](https://bugs.winehq.org/show_bug.cgi?id=60399),
+  merged upstream as [6964eb2](https://github.com/wine-mirror/wine/commit/6964eb2b018a9029b561124269e7ceec5bde8086))
+  backported. It installs `ucrtbs64.dll`, `vcruntime140.dll` and `msvcp140.dll` only in the ARM64
+  instance; the prefix, other games and BSManager's launch settings are unchanged.
+- Mods use the unmodified upstream MonoMod.Core 1.3.4, which has the Windows ARM64 ABI, instead of
+  our patched rebuild of 1.3.3. The installer upgrades BSIPA's 1.3.3 and earlier bs-arm64 builds.
+- Reinstalling over an earlier release swaps the runtimes and keeps the original backups; uninstall
+  restores them. The `vcruntime140_1.dll` earlier releases installed is removed.
+- The installer checks the Wine prefix and Proton before changing the instance, so a missing prefix
+  no longer leaves it half installed.
+
+### Removed
+- The Microsoft VC++ ARM64 runtime download (`fetch` no longer needs it) and `vcredist_extract.py`.
+- The local MonoMod patch; building no longer needs a .NET SDK.
+- The Wine C++ exception-handling reproducer (`tools/repro/cxx-eh`); it is attached to the Wine bug.
+
+### Docs
+- [UPSTREAM.md](docs/UPSTREAM.md): the Wine and MonoMod bugs are fixed upstream; what we carry until
+  Proton and BSIPA pick the fixes up.
+
 ## [0.2.1] – 2026-09-30
 
 ### Changed
@@ -122,6 +146,8 @@ Steam, OpenXR on SteamVR and BSIPA mods.
   Harmony can patch.
 - Release packaging and GitHub workflow; the installer refuses other Proton builds.
 
+[0.2.2]: https://github.com/DaVarga/bs-arm64/releases/tag/v0.2.2
+[0.2.1]: https://github.com/DaVarga/bs-arm64/releases/tag/v0.2.1
 [0.2.0]: https://github.com/DaVarga/bs-arm64/releases/tag/v0.2.0
 [0.1.7]: https://github.com/DaVarga/bs-arm64/releases/tag/v0.1.7
 [0.1.6]: https://github.com/DaVarga/bs-arm64/releases/tag/v0.1.6
