@@ -9,13 +9,14 @@
 #   dxgi.dll, d3d11.dll   DXVK (Proton's commit) for aarch64
 #   MonoPosixHelper.dll   Mono's zlib helper (System.IO.Compression) for Windows ARM64
 #   winhttp.dll           BSIPA's Doorstop injector (mod loader entry point) for Windows ARM64
-#   MonoMod.Core.dll      MonoMod.Core as shipped by BSIPA, plus the Windows ARM64 ABI (Harmony)
+#   MonoMod.Core.dll      unmodified upstream 1.3.4 (Windows ARM64 ABI, Harmony)
 #   LIV_Bridge.dll        stub for the LIV SDK's x64-only native bridge (reports: no LIV capture)
+#   ucrtbs64.dll, vcruntime140.dll, msvcp140.dll  private Wine C++ runtime with the upstream EH fix
 #   patch_unityopenxr.py  copied for install/
 #
 # Usage: ./build.sh [step...]   steps: toolchain fetch wine-tools lsteamclient wineopenxr
 #                                      steam-api openxr-loader dxvk monoposixhelper doorstop monomod
-#                                      liv-bridge
+#                                      liv-bridge wine-runtime
 #        (default: all, in that order)
 #        ./build.sh package        release tarball of out/ + installer + licenses into dist/
 #                                  (version: $BS_ARM64_VERSION, else `git describe --tags`)
@@ -107,6 +108,46 @@ step_wine_tools() {
     # shellcheck disable=SC2086
     PATH=$TC/bin:$PATH make -C "$WINE_TOOLS" -k -j"$JOBS" $headers >/dev/null 2>&1 || true
     [ -f "$WINE_TOOLS/include/d3d11.h" ] || { echo "header generation failed" >&2; exit 1; }
+}
+
+# Build only the private ARM64 CRT DLLs in an isolated copy of Proton's Wine source.
+# The patches name/link the private UCRT and produce ordinary application-local PE files;
+# neither the cached Wine checkout nor Proton's shared runtime is modified.
+step_wine_runtime() {
+    log "private Wine ARM64 C++ runtime"
+    local src=$OBJ/wine-runtime-src b=$OBJ/wine-runtime fingerprint
+    fingerprint=$( { printf '%s\n' "$WINE_COMMIT" "$LLVM_MINGW_VERSION";
+                     sha256sum "$ROOT/build.sh" "$ROOT/patches/wine/"*.patch; } | sha256sum | cut -d' ' -f1)
+    if [ "$(cat "$src/.bs-arm64-inputs" 2>/dev/null || true)" != "$fingerprint" ]; then
+        rm -rf "${src:?}" "${b:?}"
+        mkdir -p "$src" "$b"
+        git -C "$WINE" archive "$WINE_COMMIT" | tar x -C "$src"
+        (cd "$src" && tools/make_specfiles >/dev/null)
+        local patch
+        for patch in "$ROOT/patches/wine/"*.patch; do patch -d "$src" -p1 < "$patch"; done
+        cp "$src/dlls/ucrtbase/ucrtbase.spec" "$src/dlls/ucrtbase/ucrtbs64.spec"
+        (cd "$src" && autoreconf -f)
+        (cd "$src/dlls/winevulkan" && python3 make_vulkan -x vk.xml -X video.xml)
+        printf '%s\n' "$fingerprint" > "$src/.bs-arm64-inputs"
+    fi
+    if [ ! -f "$b/Makefile" ]; then
+        (cd "$b" && PATH="$TC/bin:$PATH" "$src/configure" --enable-archs=aarch64 --disable-tests \
+            --without-x --without-freetype --without-fontconfig --without-gstreamer --without-vulkan \
+            --without-wayland --without-alsa --without-pulse --without-dbus --without-gnutls \
+            --without-cups --without-sane --without-usb --without-v4l2 --without-krb5 \
+            --without-netapi --without-opencl --without-pcap --without-sdl --without-udev \
+            --without-unwind --without-gphoto > configure.log 2>&1) ||
+            { echo "Wine runtime configure failed; see $b/configure.log" >&2; exit 1; }
+    fi
+    PATH="$TC/bin:$PATH" make -C "$b" -j"$JOBS" \
+        dlls/ucrtbase/aarch64-windows/ucrtbs64.dll \
+        dlls/vcruntime140/aarch64-windows/vcruntime140.dll \
+        dlls/msvcp140/aarch64-windows/msvcp140.dll > "$b/build.log" 2>&1 ||
+        { tail -40 "$b/build.log" >&2; exit 1; }
+    cp "$b/dlls/ucrtbase/aarch64-windows/ucrtbs64.dll" "$OUT/"
+    cp "$b/dlls/vcruntime140/aarch64-windows/vcruntime140.dll" "$OUT/"
+    cp "$b/dlls/msvcp140/aarch64-windows/msvcp140.dll" "$OUT/"
+    python3 "$ROOT/src/wine-runtime/verify.py" "$OUT"
 }
 
 wine_pe_flags() { # <module source dir>
@@ -264,29 +305,28 @@ step_liv_bridge() {
 
 
 # Harmony (via MonoMod.Core) has no default ABI for Windows ARM64 and refuses to patch.
-# Rebuild the exact MonoMod.Core that BSIPA ships with the one-line ABI fix.
-# Needs a .NET 10 SDK (dotnet on PATH).
+# Use the unmodified upstream net452 DLL, including the Windows ARM64 ABI fix.
 step_monomod() {
-    log "MonoMod.Core.dll (Windows ARM64 ABI)"
-    local src=$DEPS/monomod
-    command -v dotnet >/dev/null || { echo "dotnet (.NET 10 SDK) not found; skipping MonoMod.Core" >&2; return 0; }
-    if [ ! -d "$src/.git" ]; then
-        git clone -q --filter=blob:none https://github.com/MonoMod/MonoMod.git "$src"
-        git -C "$src" checkout -q "$MONOMOD_COMMIT"
-        git -C "$src" submodule update -q --init
-    fi
-    git -C "$src" apply --check "$ROOT/patches/monomod/"*.patch 2>/dev/null && git -C "$src" apply "$ROOT/patches/monomod/"*.patch
-    # The repo pins an exact SDK feature band; any 10.0.x SDK builds it.
-    sed -i 's/"rollForward": "latestPatch"/"rollForward": "latestFeature"/' "$src/global.json"
-    # Run from the MonoMod checkout: its Directory.Build.rsp writes msbuild.binlog to the cwd.
-    (cd "$src" && DOTNET_CLI_TELEMETRY_OPTOUT=1 dotnet build src/MonoMod.Core/MonoMod.Core.csproj -c Release -f net452 \
-        -p:ContinuousIntegrationBuild=true >/dev/null)
-    cp "$src/artifacts/bin/MonoMod.Core/release_net452/MonoMod.Core.dll" "$OUT/"
+    log "MonoMod.Core $MONOMOD_CORE_VERSION (upstream package)"
+    local src=$DEPS/monomod-core-$MONOMOD_CORE_VERSION pkg
+    mkdir -p "$src"
+    pkg=$src/monomod.core.$MONOMOD_CORE_VERSION.nupkg
+    [ -f "$pkg" ] || curl -fsSL -o "$pkg" \
+        "https://api.nuget.org/v3-flatcontainer/monomod.core/$MONOMOD_CORE_VERSION/monomod.core.$MONOMOD_CORE_VERSION.nupkg"
+    printf '%s  %s\n' "$MONOMOD_CORE_SHA256" "$pkg" | sha256sum -c -
+    python3 - "$pkg" "$OUT/MonoMod.Core.dll" "$src/LICENSE" <<'PY'
+import sys, zipfile
+from pathlib import Path
+with zipfile.ZipFile(sys.argv[1]) as package:
+    Path(sys.argv[2]).write_bytes(package.read('lib/net452/MonoMod.Core.dll'))
+    Path(sys.argv[3]).write_bytes(package.read('LICENSE.txt'))
+PY
 }
 
 # The DLLs a release ships; the installer needs all of them.
 RELEASE_DLLS=(lsteamclient_a64.dll wineopenxr_a64.dll steam_api64.dll openxr_loader.dll dxgi.dll d3d11.dll
-              MonoPosixHelper.dll winhttp.dll MonoMod.Core.dll LIV_Bridge.dll)
+              MonoPosixHelper.dll winhttp.dll MonoMod.Core.dll LIV_Bridge.dll
+              ucrtbs64.dll vcruntime140.dll msvcp140.dll)
 
 # Release tarball in dist/: the DLLs, the installer and its helpers, docs, the upstream
 # licenses, and SOURCES.md (where the corresponding source is, for the LGPL parts).
@@ -315,12 +355,13 @@ if bad:
 PY
     [ "$(stat -c %s "$OUT/steam_api64.dll")" -lt $((350 * 1024)) ] ||
         { echo "steam_api64.dll must stay below 350 KB (BSIPA anti-piracy heuristic)" >&2; exit 1; }
+    python3 "$ROOT/src/wine-runtime/verify.py" "$OUT"
 
     rm -rf "${stage:?}" "$dist/$name.tar.gz" "$dist/$name.tar.gz.sha256"
     mkdir -p "$stage/licenses"
     for f in "${RELEASE_DLLS[@]}"; do cp "$OUT/$f" "$stage/"; done
     cp "$ROOT/install/bs-arm64.sh" "$ROOT/versions.env" "$ROOT/src/unityopenxr/patch_unityopenxr.py" \
-       "$ROOT/tools/unity_pkg_extract.py" "$ROOT/tools/vcredist_extract.py" "$ROOT/LICENSE" "$ROOT/README.md" "$stage/"
+       "$ROOT/tools/unity_pkg_extract.py" "$ROOT/LICENSE" "$ROOT/README.md" "$stage/"
     cp -r "$ROOT/docs" "$stage/"
 
     local l=$stage/licenses
@@ -329,6 +370,7 @@ PY
     cp "$PROTON/lsteamclient/LICENSE" "$l/Steamworks-SDK-LICENSE"
     cp "$WINE/LICENSE" "$l/Wine-LICENSE"
     cp "$WINE/COPYING.LIB" "$l/Wine-COPYING.LIB"
+    cp "$WINE/libs/musl/COPYRIGHT" "$l/musl-COPYRIGHT"
     cp "$DEPS/dxvk/LICENSE" "$l/DXVK-LICENSE"
     cp "$DEPS/dxvk/subprojects/dxbc-spirv/LICENSE" "$l/dxbc-spirv-LICENSE"
     cp "$DEPS/dxvk/subprojects/libdisplay-info/LICENSE" "$l/libdisplay-info-LICENSE"
@@ -336,7 +378,7 @@ PY
     cp "$DEPS/zlib-$ZLIB_VERSION/LICENSE" "$l/zlib-LICENSE"
     cp "$DEPS/mono-LICENSE" "$l/Mono-LICENSE"
     cp "$DEPS/bsipa/Doorstop/LICENSE" "$l/Doorstop-LICENSE"
-    cp "$DEPS/monomod/LICENSE" "$l/MonoMod-LICENSE"
+    cp "$DEPS/monomod-core-$MONOMOD_CORE_VERSION/LICENSE" "$l/MonoMod-LICENSE"
     cp "$TC/LICENSE.TXT" "$l/llvm-mingw-LICENSE.TXT"
 
     local rev
@@ -344,20 +386,22 @@ PY
     cat > "$stage/SOURCES.md" <<EOF
 # Corresponding source
 
-The binaries in this release were built by \`build.sh\` from these exact sources. Each upstream
+The native binaries in this release were built by \`build.sh\` from these exact sources.
+MonoMod.Core is the unmodified DLL from its pinned upstream NuGet package. Each upstream
 license is in \`licenses/\`; this project's own code is MIT (\`LICENSE\`).
 
 | Component | Source |
 |---|---|
 | bs-arm64 (build script, patches, steam_api64, LIV_Bridge stub, installer) | $repo/tree/$rev |
 | Proton $PROTON_TAG (lsteamclient, wineopenxr, Steamworks SDK headers) | https://github.com/ValveSoftware/Proton/tree/$PROTON_TAG |
-| Wine, Proton's fork (winecrt0, headers, widl, winebuild) | https://github.com/ValveSoftware/wine/tree/$WINE_COMMIT |
+| Wine, Proton's fork (private C++ runtime, winecrt0, headers, widl, winebuild; patches/wine includes upstream $WINE_CXX_EH_FIX) | https://github.com/ValveSoftware/wine/tree/$WINE_COMMIT |
+| musl (statically linked into the private Wine runtime) | https://github.com/ValveSoftware/wine/tree/$WINE_COMMIT/libs/musl |
 | DXVK, Proton's fork, with its submodules | https://github.com/ValveSoftware/dxvk/tree/$DXVK_COMMIT |
 | OpenXR-SDK $OPENXR_SDK_TAG | https://github.com/KhronosGroup/OpenXR-SDK/tree/$OPENXR_SDK_TAG |
 | zlib $ZLIB_VERSION | https://github.com/madler/zlib/releases/tag/v$ZLIB_VERSION |
 | Mono \`support/zlib-helper.c\` (Unity's fork) | https://github.com/Unity-Technologies/mono/blob/$UNITY_MONO_COMMIT/support/zlib-helper.c |
 | BSIPA's Doorstop | https://github.com/nike4613/BeatSaber-IPA-Reloaded/tree/$BSIPA_COMMIT/Doorstop |
-| MonoMod | https://github.com/MonoMod/MonoMod/tree/$MONOMOD_COMMIT |
+| MonoMod.Core $MONOMOD_CORE_VERSION (unmodified NuGet net452 DLL, package SHA256 $MONOMOD_CORE_SHA256) | https://github.com/MonoMod/MonoMod/tree/$MONOMOD_COMMIT |
 | llvm-mingw $LLVM_MINGW_VERSION (toolchain; statically linked runtime parts) | https://github.com/mstorsjo/llvm-mingw/releases/tag/$LLVM_MINGW_VERSION |
 
 The changes to upstream code are the patches in \`patches/\` of the bs-arm64 tree above.
@@ -418,8 +462,10 @@ touches.
 
 ## Not included
 
-The Unity ARM64 player, Unity's OpenXR plugin and Microsoft's VC++ runtime aren't redistributable. The
-installer downloads them from their official sources. Corresponding source for the binaries:
+The Unity ARM64 player and Unity's OpenXR plugin aren't redistributable. The
+installer downloads them from their official sources. The fixed, private Wine C++ runtime is included
+and installs beside the ARM64 game; no Microsoft runtime download or BSM changes are needed.
+Corresponding source for the binaries:
 \`SOURCES.md\`, built from $repo/tree/$rev.
 
 Unofficial project, not affiliated with Beat Games or Valve.
@@ -428,13 +474,13 @@ EOF
 }
 
 ALL=(toolchain fetch wine-tools lsteamclient wineopenxr steam-api openxr-loader dxvk monoposixhelper doorstop monomod
-     liv-bridge)
+     liv-bridge wine-runtime)
 STEPS=("$@")
 [ ${#STEPS[@]} -eq 0 ] && STEPS=("${ALL[@]}")
 for s in "${STEPS[@]}"; do
     "step_${s//-/_}"
 done
 [ "${STEPS[*]}" = package ] && exit 0
-cp "$ROOT/src/unityopenxr/patch_unityopenxr.py" "$ROOT/tools/unity_pkg_extract.py" "$ROOT/tools/vcredist_extract.py" "$OUT/"
+cp "$ROOT/src/unityopenxr/patch_unityopenxr.py" "$ROOT/tools/unity_pkg_extract.py" "$OUT/"
 log "done"
 ls -la "$OUT"

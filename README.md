@@ -76,7 +76,7 @@ copy `UserData` over from a Windows install.
 | OpenXR on SteamVR, controllers, recenter | ✅ |
 | Burst-compiled code | ⚠️ x64 `lib_burst_generated.dll` can't load; Unity falls back to managed code |
 | LIV mixed-reality capture | ❌ not available (a stub `LIV_Bridge.dll` reports "no capture") |
-| Mods: BSIPA 4.3.7 + Harmony (tested: SiraUtil, BSML, SongCore, BS Utils) | ✅ with the ARM64 Doorstop + patched MonoMod.Core |
+| Mods: BSIPA 4.3.7 + Harmony (tested: SiraUtil, BSML, SongCore, BS Utils) | ✅ with the ARM64 Doorstop + upstream MonoMod.Core 1.3.4 |
 | Other game versions | ❌ only 1.44.1 (Unity 6000.0.40f1) |
 
 ## How it works
@@ -95,9 +95,9 @@ piece around it that only existed as x64 or ARM64EC has an ARM64 replacement. De
 | `UnityOpenXR.dll` | Unity's UWP ARM64 build, imports patched for desktop ([src/unityopenxr](src/unityopenxr)) |
 | `dxgi.dll`, `d3d11.dll` | DXVK at Proton's commit, built for aarch64 ([patches/dxvk](patches/dxvk)) |
 | `MonoPosixHelper.dll` | Mono's zlib helper + zlib; Unity doesn't ship one for ARM64 |
-| `vcruntime140*.dll`, `msvcp140.dll` | Microsoft VC++ ARM64 redistributable (downloaded) |
+| `ucrtbs64.dll`, `vcruntime140.dll`, `msvcp140.dll` | private Wine ARM64 C++ runtime, built from the matching Proton source with the upstream exception-handling fix ([patches/wine](patches/wine)) |
 | `winhttp.dll` (mods) | BSIPA's Doorstop injector, rebuilt for ARM64 ([src/doorstop](src/doorstop)) |
-| `Libs/MonoMod.Core.dll` (mods) | MonoMod.Core as shipped by BSIPA + Windows ARM64 ABI ([patches/monomod](patches/monomod)) |
+| `Libs/MonoMod.Core.dll` (mods) | unmodified upstream MonoMod.Core 1.3.4, which includes Windows ARM64 support |
 
 ## Quick start
 

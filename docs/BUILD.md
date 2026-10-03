@@ -1,21 +1,22 @@
 # Building
 
-`build.sh` builds every open-source component from pinned sources ([versions.env](../versions.env)) into
-`out/`. It works on x86_64 or aarch64 Linux, and all output is Windows ARM64 (`aarch64-w64-mingw32`).
+`build.sh` builds the native components from pinned sources ([versions.env](../versions.env)) into
+`out/` and downloads the pinned upstream MonoMod.Core package. It works on x86_64 or aarch64 Linux;
+native output is Windows ARM64 (`aarch64-w64-mingw32`), and MonoMod.Core is managed code.
 
 ## Requirements
 
 Debian/Ubuntu packages:
 
 ```sh
-sudo apt install git curl python3 make gcc flex bison autoconf perl \
+sudo apt install git curl python3 make gcc patch flex bison autoconf perl \
                  cmake ninja-build meson glslang-tools
 ```
 
 `build.sh` downloads the llvm-mingw toolchain (pinned release) itself.
 
-The `monomod` step also needs a **.NET 10 SDK** with `dotnet` on `PATH`
-(https://dot.net/v1/dotnet-install.sh). Without it, the step is skipped.
+The `monomod` step extracts the unmodified `net452` DLL from MonoMod.Core 1.3.4's official NuGet
+package after checking its pinned SHA256. It requires no .NET SDK or local MonoMod patch.
 
 On Ubuntu, `needrestart` can block an unattended `apt` behind an interactive prompt. Use
 `sudo NEEDRESTART_MODE=a apt install …`.
@@ -32,6 +33,7 @@ On Ubuntu, `needrestart` can block an unattended `apt` behind an interactive pro
 | `toolchain` | download llvm-mingw into `deps/` |
 | `fetch` | clone Proton (tag), Wine (Proton's submodule commit), DXVK (Proton's commit, with submodules), OpenXR-SDK (tag); download zlib and Mono's `zlib-helper.c` |
 | `wine-tools` | `autoreconf`, `make_specfiles`, `make_makefiles`, `make_vulkan`, then a tools-only `configure` and build of `widl`, `winebuild`, and every IDL-generated header |
+| `wine-runtime` | isolated copy of Proton's pinned Wine source + `patches/wine`: build `ucrtbs64.dll`, `vcruntime140.dll`, `msvcp140.dll` as ordinary, game-local ARM64 DLLs |
 | `lsteamclient` | Proton `lsteamclient/*.c` (Windows half) → `lsteamclient_a64.dll`, exports from its `.spec`, Wine builtin marker |
 | `wineopenxr` | Proton `wineopenxr/{openxr_loader,loader_thunks}.c` → `wineopenxr_a64.dll`, import libs for `winevulkan`/`ntdll` generated with `winebuild --def` |
 | `steam-api` | `gen.py` (flat API wrappers) + `gen_sdk_inline.py` + core/helpers → `steam_api64.dll` |
@@ -39,11 +41,17 @@ On Ubuntu, `needrestart` can block an unattended `apt` behind an interactive pro
 | `dxvk` | apply patches, Meson cross build → `dxgi.dll`, `d3d11.dll` |
 | `monoposixhelper` | `zlib-helper.c` + zlib → `MonoPosixHelper.dll` |
 | `doorstop` | BSIPA's Doorstop + generated ARM64 winhttp stubs → `winhttp.dll` |
-| `monomod` | MonoMod at BSIPA's commit + ABI patch → `MonoMod.Core.dll` (net452) |
+| `monomod` | download and verify the pinned upstream MonoMod.Core 1.3.4 NuGet package → unmodified `MonoMod.Core.dll` (net452) |
 | `liv-bridge` | `src/liv-bridge/liv_bridge.c` → `LIV_Bridge.dll` (stub for the game's LIV SDK) |
 | `package` | not part of the default run: release tarball in `dist/` (see below) |
 
 A full build from scratch takes about 15–20 minutes, mostly Wine's header generation and DXVK.
+
+The private runtime is built from source with its own UCRT name, including the C++ library's dynamic
+lookups. Wine's build rules omit the builtin marker for these three DLLs, so they load from the game
+folder without runtime registry overrides. `src/wine-runtime/verify.py` checks their architecture,
+imports and exception-handler forwarders during the build and packaging. No binary name rewriting
+is used. The runtime build uses `--enable-archs=aarch64` on either Linux host architecture.
 
 ## Releases
 
@@ -64,8 +72,11 @@ git tag v0.1.0 && git push origin v0.1.0
 ```
 
 It runs on `ubuntu-24.04-arm`. If Arm runners aren't available for the repository, set the repository
-variable `BS_ARM64_RUNNER` to `ubuntu-24.04`. `deps/` is cached, keyed on `versions.env` and
-`patches/`.
+variable `BS_ARM64_RUNNER` to `ubuntu-24.04`. `deps/` is cached, keyed on `versions.env`,
+`patches/` and `build.sh`.
+
+The workflow also runs the installer upgrade/uninstall tests in
+`tools/test_installer_runtime.py` and checks that the tarball contains all three private runtime DLLs.
 
 Each release is tied to one Proton build. When Valve updates Proton ARM64, update the pins (below) and
 tag a new release.

@@ -1,6 +1,6 @@
 # Licensing and redistribution
 
-**This is not legal advice.** It describes how the project is laid out so it can be published safely.
+Licenses, source origins, and redistribution boundaries for the repository and release packages.
 
 ## What this repository contains
 
@@ -14,7 +14,7 @@ source except what the build downloads from upstream.
 | `src/monoposixhelper/glib.h`, `config.h` | original shim | MIT |
 | `patches/openxr-loader/*` | changes to the Khronos OpenXR-SDK | Apache-2.0 (upstream) |
 | `patches/dxvk/*` | changes to DXVK | zlib (upstream) |
-| `patches/monomod/*` | changes to MonoMod | MIT (upstream) |
+| `patches/wine/*` | upstream exception fix + changes to build the private runtime | LGPL-2.1+ (Wine) |
 | `src/doorstop/*` | build glue + stub generator for BSIPA's Doorstop | MIT (Doorstop itself: CC0) |
 
 The Steamworks SDK headers aren't copied into this repo. The build reads them from Proton's public
@@ -26,12 +26,13 @@ repository, which carries them in `lsteamclient/steamworks_sdk_*`. `sdk_inline_i
 | File | Built from | License |
 |---|---|---|
 | `lsteamclient_a64.dll`, `wineopenxr_a64.dll` | Proton sources + Wine (`winecrt0`) | LGPL-2.1+ (Wine/Proton), BSD-3 for some Proton parts; see Proton's `LICENSE` |
+| `ucrtbs64.dll`, `vcruntime140.dll`, `msvcp140.dll` | pinned Proton Wine + `patches/wine`; private runtime statically includes musl | LGPL-2.1+ (Wine); musl MIT notices in `licenses/musl-COPYRIGHT` |
 | `openxr_loader.dll` | Khronos OpenXR-SDK | Apache-2.0 |
 | `dxgi.dll`, `d3d11.dll` | DXVK | zlib |
 | `MonoPosixHelper.dll` | Mono `zlib-helper.c` (MIT) + zlib (zlib) | MIT + zlib |
 | `steam_api64.dll` | this project | MIT |
 | `winhttp.dll` | BSIPA's Doorstop (CC0) + this project's glue | CC0 / MIT |
-| `MonoMod.Core.dll` | MonoMod | MIT |
+| `MonoMod.Core.dll` | unmodified upstream MonoMod.Core 1.3.4 NuGet package (`net452`) | MIT |
 
 Anyone distributing the built binaries must follow those licenses. For the LGPL parts, that means
 offering the corresponding source; pointing to the pinned upstream tags plus this repo does that.
@@ -54,7 +55,6 @@ release.
 |---|---|---|
 | Unity Windows ARM64 player (`WindowsPlayer.exe`, `UnityPlayer.dll`, `UnityCrashHandler64.exe`, `mono-2.0-bdwgc.dll`) | Unity's download CDN | Unity runtime binaries: the Unity licence lets them ship inside a game built by a Unity licensee, not on their own |
 | `UnityOpenXR.dll` (ARM64) | Unity package registry, com.unity.xr.openxr 1.14.3 | Unity Companion License; patched locally |
-| `vcruntime140*.dll`, `msvcp140.dll` | Microsoft `vc_redist.arm64.exe` | Microsoft Visual C++ redistributable terms |
 
 `install/bs-arm64.sh fetch` downloads and patches these on the user's machine.
 
@@ -62,8 +62,8 @@ release.
 
 Beat Saber's files, and the user's ownership of the game, are required and are verified through Steam
 as usual. The install **replaces the game's engine binaries** in a local copy; no game data or code is
-changed. It's comparable to how mod loaders work, but check Beat Games' terms before publishing, and
-make the project name and README clearly unofficial. "Beat Saber" is a trademark of Beat Games.
+changed. The project is unofficial and is not affiliated with Beat Games. "Beat Saber" is a trademark
+of Beat Games.
 
 ## Project license
 

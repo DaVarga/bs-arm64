@@ -1,0 +1,235 @@
+Subject: Build the ARM64 C++ runtime as application-local DLLs
+
+Use a private UCRT name for the C++ runtime and its dynamic lookups. Keep
+Wine's builtin marker off these three PE files so the loader uses the
+application-local copies without shared-prefix overrides.
+
+The build copies ucrtbase.spec to ucrtbs64.spec before configuring.
+
+diff --git a/dlls/msvcp140/Makefile.in b/dlls/msvcp140/Makefile.in
+index fd68c03..38658f3 100644
+--- a/dlls/msvcp140/Makefile.in
++++ b/dlls/msvcp140/Makefile.in
+@@ -2,7 +2,7 @@ MODULE = msvcp140.dll
+ EXTRADEFS = -D_MSVCP_VER=140
+ PARENTSRC = ../msvcp90
+ IMPORTLIB = msvcp140
+-IMPORTS   = vcruntime140
++IMPORTS   = vcruntime140 ucrtbs64
+ 
+ SOURCES = \
+ 	details.c \
+diff --git a/dlls/msvcp90/msvcp_main.c b/dlls/msvcp90/msvcp_main.c
+index ad0137f..621abdc 100644
+--- a/dlls/msvcp90/msvcp_main.c
++++ b/dlls/msvcp90/msvcp_main.c
+@@ -208,7 +208,7 @@ bool (__cdecl *Context_IsCurrentTaskCollectionCanceling)(void);
+ 
+ #define VERSION_STRING(ver) #ver
+ #if _MSVCP_VER >= 140
+-#define MSVCRT_NAME(ver) "ucrtbase.dll"
++#define MSVCRT_NAME(ver) "ucrtbs64.dll"
+ #define CONCRT_NAME(ver) "concrt" VERSION_STRING(ver) ".dll"
+ #else
+ #define MSVCRT_NAME(ver) "msvcr" VERSION_STRING(ver) ".dll"
+diff --git a/dlls/ucrtbase/Makefile.in b/dlls/ucrtbase/Makefile.in
+index a3bb547..540b1e5 100644
+--- a/dlls/ucrtbase/Makefile.in
++++ b/dlls/ucrtbase/Makefile.in
+@@ -1,6 +1,6 @@
+ EXTRADEFS = -D_CRTIMP=
+-MODULE    = ucrtbase.dll
+-IMPORTLIB = ucrtbase
++MODULE    = ucrtbs64.dll
++IMPORTLIB = ucrtbs64
+ IMPORTS   = $(MUSL_PE_LIBS) ntdll
+ DELAYIMPORTS = advapi32 user32
+ PARENTSRC = ../msvcrt
+diff --git a/dlls/vcruntime140/Makefile.in b/dlls/vcruntime140/Makefile.in
+index 1f99225..6f44236 100644
+--- a/dlls/vcruntime140/Makefile.in
++++ b/dlls/vcruntime140/Makefile.in
+@@ -1,5 +1,6 @@
+ MODULE    = vcruntime140.dll
+ IMPORTLIB = vcruntime140
++IMPORTS   = ucrtbs64
+ 
+ SOURCES = \
+ 	misc.c
+diff --git a/dlls/vcruntime140/vcruntime140.spec b/dlls/vcruntime140/vcruntime140.spec
+index 6a04f16..b726c47 100644
+--- a/dlls/vcruntime140/vcruntime140.spec
++++ b/dlls/vcruntime140/vcruntime140.spec
+@@ -1,88 +1,88 @@
+-@ cdecl _CreateFrameInfo(ptr ptr) ucrtbase._CreateFrameInfo
+-@ stdcall _CxxThrowException(ptr ptr) ucrtbase._CxxThrowException
+-@ cdecl -arch=i386 -norelay _EH_prolog() ucrtbase._EH_prolog
+-@ cdecl _FindAndUnlinkFrame(ptr) ucrtbase._FindAndUnlinkFrame
+-@ cdecl _IsExceptionObjectToBeDestroyed(ptr) ucrtbase._IsExceptionObjectToBeDestroyed
++@ cdecl _CreateFrameInfo(ptr ptr) ucrtbs64._CreateFrameInfo
++@ stdcall _CxxThrowException(ptr ptr) ucrtbs64._CxxThrowException
++@ cdecl -arch=i386 -norelay _EH_prolog() ucrtbs64._EH_prolog
++@ cdecl _FindAndUnlinkFrame(ptr) ucrtbs64._FindAndUnlinkFrame
++@ cdecl _IsExceptionObjectToBeDestroyed(ptr) ucrtbs64._IsExceptionObjectToBeDestroyed
+ @ stub _NLG_Dispatch2
+ @ stub _NLG_Return
+ @ stub _NLG_Return2
+-@ cdecl _SetWinRTOutOfMemoryExceptionCallback(ptr) ucrtbase._SetWinRTOutOfMemoryExceptionCallback
+-@ cdecl __AdjustPointer(ptr ptr) ucrtbase.__AdjustPointer
++@ cdecl _SetWinRTOutOfMemoryExceptionCallback(ptr) ucrtbs64._SetWinRTOutOfMemoryExceptionCallback
++@ cdecl __AdjustPointer(ptr ptr) ucrtbs64.__AdjustPointer
+ @ stub __BuildCatchObject
+ @ stub __BuildCatchObjectHelper
+-@ stdcall -arch=!i386 __C_specific_handler(ptr long ptr ptr) ucrtbase.__C_specific_handler
++@ stdcall -arch=!i386 __C_specific_handler(ptr long ptr ptr) ucrtbs64.__C_specific_handler
+ @ stub __C_specific_handler_noexcept
+-@ cdecl __CxxDetectRethrow(ptr) ucrtbase.__CxxDetectRethrow
+-@ cdecl __CxxExceptionFilter(ptr ptr long ptr) ucrtbase.__CxxExceptionFilter
+-@ cdecl -norelay __CxxFrameHandler(ptr ptr ptr ptr) ucrtbase.__CxxFrameHandler
+-@ cdecl -norelay __CxxFrameHandler2(ptr ptr ptr ptr) ucrtbase.__CxxFrameHandler2
+-@ cdecl -norelay __CxxFrameHandler3(ptr ptr ptr ptr) ucrtbase.__CxxFrameHandler3
+-@ stdcall -arch=i386 __CxxLongjmpUnwind(ptr) ucrtbase.__CxxLongjmpUnwind
+-@ cdecl __CxxQueryExceptionSize() ucrtbase.__CxxQueryExceptionSize
+-@ cdecl __CxxRegisterExceptionObject(ptr ptr) ucrtbase.__CxxRegisterExceptionObject
+-@ cdecl __CxxUnregisterExceptionObject(ptr long) ucrtbase.__CxxUnregisterExceptionObject
+-@ cdecl __DestructExceptionObject(ptr) ucrtbase.__DestructExceptionObject
++@ cdecl __CxxDetectRethrow(ptr) ucrtbs64.__CxxDetectRethrow
++@ cdecl __CxxExceptionFilter(ptr ptr long ptr) ucrtbs64.__CxxExceptionFilter
++@ cdecl -norelay __CxxFrameHandler(ptr ptr ptr ptr) ucrtbs64.__CxxFrameHandler
++@ cdecl -norelay __CxxFrameHandler2(ptr ptr ptr ptr) ucrtbs64.__CxxFrameHandler2
++@ cdecl -norelay __CxxFrameHandler3(ptr ptr ptr ptr) ucrtbs64.__CxxFrameHandler3
++@ stdcall -arch=i386 __CxxLongjmpUnwind(ptr) ucrtbs64.__CxxLongjmpUnwind
++@ cdecl __CxxQueryExceptionSize() ucrtbs64.__CxxQueryExceptionSize
++@ cdecl __CxxRegisterExceptionObject(ptr ptr) ucrtbs64.__CxxRegisterExceptionObject
++@ cdecl __CxxUnregisterExceptionObject(ptr long) ucrtbs64.__CxxUnregisterExceptionObject
++@ cdecl __DestructExceptionObject(ptr) ucrtbs64.__DestructExceptionObject
+ @ stub __FrameUnwindFilter
+ @ stub __GetPlatformExceptionInfo
+ @ stub __NLG_Dispatch2
+ @ stub __NLG_Return2
+-@ cdecl __RTCastToVoid(ptr) ucrtbase.__RTCastToVoid
+-@ cdecl __RTDynamicCast(ptr long ptr ptr long) ucrtbase.__RTDynamicCast
+-@ cdecl __RTtypeid(ptr) ucrtbase.__RTtypeid
++@ cdecl __RTCastToVoid(ptr) ucrtbs64.__RTCastToVoid
++@ cdecl __RTDynamicCast(ptr long ptr ptr long) ucrtbs64.__RTDynamicCast
++@ cdecl __RTtypeid(ptr) ucrtbs64.__RTtypeid
+ @ stub __TypeMatch
+-@ cdecl __current_exception() ucrtbase.__current_exception
+-@ cdecl __current_exception_context() ucrtbase.__current_exception_context
+-@ cdecl -norelay __intrinsic_setjmp(ptr) ucrtbase.__intrinsic_setjmp
+-@ cdecl -arch=!i386 -norelay __intrinsic_setjmpex(ptr ptr) ucrtbase.__intrinsic_setjmpex
+-@ stdcall -arch=arm __jump_unwind(ptr ptr) ucrtbase.__jump_unwind
+-@ cdecl __processing_throw() ucrtbase.__processing_throw
++@ cdecl __current_exception() ucrtbs64.__current_exception
++@ cdecl __current_exception_context() ucrtbs64.__current_exception_context
++@ cdecl -norelay __intrinsic_setjmp(ptr) ucrtbs64.__intrinsic_setjmp
++@ cdecl -arch=!i386 -norelay __intrinsic_setjmpex(ptr ptr) ucrtbs64.__intrinsic_setjmpex
++@ stdcall -arch=arm __jump_unwind(ptr ptr) ucrtbs64.__jump_unwind
++@ cdecl __processing_throw() ucrtbs64.__processing_throw
+ @ stub __report_gsfailure
+-@ cdecl __std_exception_copy(ptr ptr) ucrtbase.__std_exception_copy
+-@ cdecl __std_exception_destroy(ptr) ucrtbase.__std_exception_destroy
+-@ cdecl __std_terminate() ucrtbase.__std_terminate
+-@ cdecl __std_type_info_compare(ptr ptr) ucrtbase.__std_type_info_compare
+-@ cdecl __std_type_info_destroy_list(ptr) ucrtbase.__std_type_info_destroy_list
+-@ cdecl __std_type_info_hash(ptr) ucrtbase.__std_type_info_hash
+-@ cdecl __std_type_info_name(ptr ptr) ucrtbase.__std_type_info_name
++@ cdecl __std_exception_copy(ptr ptr) ucrtbs64.__std_exception_copy
++@ cdecl __std_exception_destroy(ptr) ucrtbs64.__std_exception_destroy
++@ cdecl __std_terminate() ucrtbs64.__std_terminate
++@ cdecl __std_type_info_compare(ptr ptr) ucrtbs64.__std_type_info_compare
++@ cdecl __std_type_info_destroy_list(ptr) ucrtbs64.__std_type_info_destroy_list
++@ cdecl __std_type_info_hash(ptr) ucrtbs64.__std_type_info_hash
++@ cdecl __std_type_info_name(ptr ptr) ucrtbs64.__std_type_info_name
+ @ cdecl __telemetry_main_invoke_trigger(ptr)
+ @ cdecl __telemetry_main_return_trigger(ptr)
+-@ cdecl __unDName(ptr str long ptr ptr long) ucrtbase.__unDName
+-@ cdecl __unDNameEx(ptr str long ptr ptr ptr long) ucrtbase.__unDNameEx
+-@ cdecl __uncaught_exception() ucrtbase.__uncaught_exception
++@ cdecl __unDName(ptr str long ptr ptr long) ucrtbs64.__unDName
++@ cdecl __unDNameEx(ptr str long ptr ptr ptr long) ucrtbs64.__unDNameEx
++@ cdecl __uncaught_exception() ucrtbs64.__uncaught_exception
+ @ cdecl __uncaught_exceptions()
+ @ stub __vcrt_GetModuleFileNameW
+ @ stub __vcrt_GetModuleHandleW
+ @ cdecl __vcrt_InitializeCriticalSectionEx(ptr long long)
+ @ stub __vcrt_LoadLibraryExW
+-@ cdecl -arch=i386 -norelay _chkesp() ucrtbase._chkesp
+-@ cdecl -arch=i386 _except_handler2(ptr ptr ptr ptr) ucrtbase._except_handler2
+-@ cdecl -arch=i386 _except_handler3(ptr ptr ptr ptr) ucrtbase._except_handler3
+-@ cdecl -arch=i386 _except_handler4_common(ptr ptr ptr ptr ptr ptr) ucrtbase._except_handler4_common
+-@ cdecl _get_purecall_handler() ucrtbase._get_purecall_handler
+-@ cdecl _get_unexpected() ucrtbase._get_unexpected
+-@ cdecl -arch=i386 _global_unwind2(ptr) ucrtbase._global_unwind2
++@ cdecl -arch=i386 -norelay _chkesp() ucrtbs64._chkesp
++@ cdecl -arch=i386 _except_handler2(ptr ptr ptr ptr) ucrtbs64._except_handler2
++@ cdecl -arch=i386 _except_handler3(ptr ptr ptr ptr) ucrtbs64._except_handler3
++@ cdecl -arch=i386 _except_handler4_common(ptr ptr ptr ptr ptr ptr) ucrtbs64._except_handler4_common
++@ cdecl _get_purecall_handler() ucrtbs64._get_purecall_handler
++@ cdecl _get_unexpected() ucrtbs64._get_unexpected
++@ cdecl -arch=i386 _global_unwind2(ptr) ucrtbs64._global_unwind2
+ @ stub _is_exception_typeof
+-@ cdecl -arch=i386 _local_unwind2(ptr long) ucrtbase._local_unwind2
+-@ cdecl -arch=i386 _local_unwind4(ptr ptr long) ucrtbase._local_unwind4
+-@ cdecl -arch=i386 _longjmpex(ptr long) ucrtbase._longjmpex
+-@ cdecl -arch=win64 _local_unwind(ptr ptr) ucrtbase._local_unwind
+-@ cdecl _purecall() ucrtbase._purecall
+-@ stdcall -arch=i386 _seh_longjmp_unwind4(ptr) ucrtbase._seh_longjmp_unwind4
+-@ stdcall -arch=i386 _seh_longjmp_unwind(ptr) ucrtbase._seh_longjmp_unwind
+-@ cdecl _set_purecall_handler(ptr) ucrtbase._set_purecall_handler
+-@ cdecl _set_se_translator(ptr) ucrtbase._set_se_translator
+-@ cdecl -arch=i386 -norelay _setjmp3(ptr long) ucrtbase._setjmp3
+-@ cdecl longjmp(ptr long) ucrtbase.longjmp
+-@ cdecl memchr(ptr long long) ucrtbase.memchr
+-@ cdecl memcmp(ptr ptr long) ucrtbase.memcmp
+-@ cdecl memcpy(ptr ptr long) ucrtbase.memcpy
+-@ cdecl memmove(ptr ptr long) ucrtbase.memmove
+-@ cdecl memset(ptr long long) ucrtbase.memset
+-@ cdecl set_unexpected(ptr) ucrtbase.set_unexpected
+-@ cdecl strchr(str long) ucrtbase.strchr
+-@ cdecl strrchr(str long) ucrtbase.strrchr
+-@ cdecl strstr(str str) ucrtbase.strstr
++@ cdecl -arch=i386 _local_unwind2(ptr long) ucrtbs64._local_unwind2
++@ cdecl -arch=i386 _local_unwind4(ptr ptr long) ucrtbs64._local_unwind4
++@ cdecl -arch=i386 _longjmpex(ptr long) ucrtbs64._longjmpex
++@ cdecl -arch=win64 _local_unwind(ptr ptr) ucrtbs64._local_unwind
++@ cdecl _purecall() ucrtbs64._purecall
++@ stdcall -arch=i386 _seh_longjmp_unwind4(ptr) ucrtbs64._seh_longjmp_unwind4
++@ stdcall -arch=i386 _seh_longjmp_unwind(ptr) ucrtbs64._seh_longjmp_unwind
++@ cdecl _set_purecall_handler(ptr) ucrtbs64._set_purecall_handler
++@ cdecl _set_se_translator(ptr) ucrtbs64._set_se_translator
++@ cdecl -arch=i386 -norelay _setjmp3(ptr long) ucrtbs64._setjmp3
++@ cdecl longjmp(ptr long) ucrtbs64.longjmp
++@ cdecl memchr(ptr long long) ucrtbs64.memchr
++@ cdecl memcmp(ptr ptr long) ucrtbs64.memcmp
++@ cdecl memcpy(ptr ptr long) ucrtbs64.memcpy
++@ cdecl memmove(ptr ptr long) ucrtbs64.memmove
++@ cdecl memset(ptr long long) ucrtbs64.memset
++@ cdecl set_unexpected(ptr) ucrtbs64.set_unexpected
++@ cdecl strchr(str long) ucrtbs64.strchr
++@ cdecl strrchr(str long) ucrtbs64.strrchr
++@ cdecl strstr(str str) ucrtbs64.strstr
+ @ stub unexpected
+-@ cdecl wcschr(wstr long) ucrtbase.wcschr
+-@ cdecl wcsrchr(wstr long) ucrtbase.wcsrchr
+-@ cdecl wcsstr(wstr wstr) ucrtbase.wcsstr
++@ cdecl wcschr(wstr long) ucrtbs64.wcschr
++@ cdecl wcsrchr(wstr long) ucrtbs64.wcsrchr
++@ cdecl wcsstr(wstr wstr) ucrtbs64.wcsstr
+diff --git a/tools/makedep.c b/tools/makedep.c
+index a4ed58b..370fc77 100644
+--- a/tools/makedep.c
++++ b/tools/makedep.c
+@@ -3676,7 +3676,11 @@ static void output_module( struct makefile *make, unsigned int arch )
+         output_filename( winegpp );
+     output( "\n" );
+     output_winegcc_command( make, link_arch, make->has_cxx );
+-    if (arch) output_filename( "-Wl,--wine-builtin" );
++    /* These game-local runtime DLLs must load from the application directory.
++     * A builtin marker would redirect them to Proton's unpatched copies. */
++    if (arch && strcmp( module, "ucrtbs64.dll" ) &&
++        strcmp( module, "vcruntime140.dll" ) && strcmp( module, "msvcp140.dll" ))
++        output_filename( "-Wl,--wine-builtin" );
+     if (!make->is_exe) output_filename( "-shared" );
+     if (spec_file)
+     {

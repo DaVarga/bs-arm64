@@ -12,9 +12,7 @@ The installer is `install/bs-arm64.sh`. It runs on the device (Steam Frame, Stea
 - the Wine prefix already created. The default is BSManager's shared prefix
   `~/.local/share/BSManager/SharedContent/compatdata`, which Proton creates the first time Beat Saber
   is launched from BSManager. Other games use their own prefixes, so launching them doesn't help.
-  Check this before running `install`: currently it copies files into the instance before it checks
-  the prefix, and a failed install leaves the instance half changed (run `install` again once the
-  prefix exists, or `uninstall`).
+  `install` checks that the prefix exists before copying files into the instance.
 - the DLLs: either a **release tarball** (unpack it and run `./bs-arm64.sh` from inside it; it uses
   the DLLs next to it), or `out/` from `build.sh` (copy the whole repo to the device, or pass
   `--artifacts DIR`)
@@ -29,7 +27,7 @@ Work on a **copy** of an instance. BSManager can duplicate instances.
 From a release, run `./bs-arm64.sh` in the unpacked folder instead of `install/bs-arm64.sh`.
 
 ```sh
-install/bs-arm64.sh fetch                 # download Unity player, UnityOpenXR, VC++ runtime (cached)
+install/bs-arm64.sh fetch                 # download Unity player and UnityOpenXR (cached)
 install/bs-arm64.sh install   <instance>  # patch the instance and set up the prefix (runs fetch)
 install/bs-arm64.sh launch    <instance>  # start it (log: /tmp/bs-arm64.log); --debug for verbose logs
 install/bs-arm64.sh uninstall <instance>  # restore the x64 files
@@ -52,14 +50,23 @@ In the instance (the originals go to `<instance>/.bs-arm64/backup/`, and added f
 | `MonoBleedingEdge/EmbedRuntime/mono-2.0-bdwgc.dll` | Unity ARM64 |
 | `MonoBleedingEdge/EmbedRuntime/MonoPosixHelper.dll` | built (zlib helper) |
 | `dxgi.dll`, `d3d11.dll` (new) | built (DXVK aarch64) |
-| `vcruntime140.dll`, `vcruntime140_1.dll`, `msvcp140.dll` (new) | Microsoft ARM64 runtime |
+| `ucrtbs64.dll`, `vcruntime140.dll`, `msvcp140.dll` | built, private Wine ARM64 C++ runtime with the upstream exception-handling fix |
 | `openxr_loader.dll` (new, next to the exe) | built |
 | `Beat Saber_Data/Plugins/ARM64/` (new) | `steam_api64.dll`, `LIV_Bridge.dll` (stub), `UnityOpenXR.dll` (patched), `openxr_loader.dll` |
 | `winhttp.dll` (only if BSIPA is installed) | ARM64 Doorstop |
-| `Libs/MonoMod.Core.dll` (only if BSIPA 4.3.7's MonoMod.Core 1.3.3 is installed) | patched MonoMod.Core |
+| `Libs/MonoMod.Core.dll` (BSIPA 4.3.7's MonoMod.Core 1.3.3 or an earlier bs-arm64 build) | unmodified upstream MonoMod.Core 1.3.4 |
 
 The game data and `Managed/*.dll` are not touched. The x64 plugins stay in `Plugins/x86_64/`, where the
 ARM64 player ignores them.
+
+Reinstalling over an older bs-arm64 release replaces Microsoft's runtime DLLs with the private Wine
+runtime. The installer removes the old `vcruntime140_1.dll` only if its install record owns that file;
+pure ARM64 uses `__CxxFrameHandler3` and the game's ARM64 binaries do not import it. Original backups
+are retained for uninstall. A user-owned, untracked `vcruntime140_1.dll` is left alone.
+
+The private runtime is entirely in the instance: it does not replace the prefix's
+`system32/ucrtbase.dll`, add runtime registry overrides, or change Proton or BSM launch settings.
+Retail/x64 instances in the same prefix continue using their own runtime.
 
 In the prefix:
 
@@ -77,7 +84,7 @@ x64 games in the same prefix are unaffected: they ignore the ARM64 value and dir
 
 Install BSIPA and mods as usual. BSManager works: its IPA run uses the x86 copy of `IPA.exe`.
 Then run `install/bs-arm64.sh install <instance>` **again**, because `IPA.exe` puts its x64
-`winhttp.dll` back. The installer replaces BSIPA's `winhttp.dll` and `Libs/MonoMod.Core.dll`, and
+`winhttp.dll` back. The installer replaces BSIPA's `winhttp.dll` and upgrades `Libs/MonoMod.Core.dll`, and
 keeps backups. Mods that ship their own native x64 DLLs won't load their native parts.
 
 Known issue: SiraUtil restarts the XR session at startup. If the headset goes into standby at that
@@ -121,7 +128,7 @@ SteamVR must be running, which it always is in the Frame's game mode. SteamVR re
 | `DllNotFoundException: UnityOpenXR` | `Plugins/ARM64/UnityOpenXR.dll` missing, or msvcp140/vcruntime140 missing |
 | `xrCreateInstance: XR_ERROR_RUNTIME_UNAVAILABLE` | registry value or JSON missing; `launch --debug` shows the loader's messages as `debugstr` lines |
 | `xrCreateSession: XR_ERROR_VALIDATION_FAILURE` | WineD3D in use instead of DXVK: `dxgi.dll`/`d3d11.dll` not next to the exe, or `PROTON_USE_WINED3D` set |
-| crash in `unityopenxr` / `ucrtbase` on recenter | Microsoft VC++ runtime missing next to the exe |
+| crash in `unityopenxr` / C++ exception handling on recenter | private runtime DLL missing or mixed with an older runtime; reinstall the matching release |
 | back to menu with "Could not load readonly beatmap level data" | x64 `MonoPosixHelper.dll` still in place |
 | BSIPA log: `Invalid installation; please buy the game` / no `Logs/` folder | a file named `*steam*` of 350 KB or more in the game folder or `Beat Saber_Data/Plugins` (BSIPA anti-piracy) |
 | BSIPA log: `doesn't provide a default ABI` | x64/original `Libs/MonoMod.Core.dll`; run `install` again |

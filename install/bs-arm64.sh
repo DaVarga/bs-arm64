@@ -5,7 +5,7 @@
 #   bs-arm64.sh fetch     [--cache DIR]
 #       Download the parts we may not redistribute, from their official sources:
 #       Unity 6000.0.40f1 Windows ARM64 player, Unity OpenXR 1.14.3 ARM64 plugin (import
-#       patched for desktop), Microsoft VC++ ARM64 runtime.
+#       patched for desktop). The private Wine C++ runtime comes with the release.
 #   bs-arm64.sh install   <instance> [--no-mods] [--artifacts DIR] [--cache DIR] [--prefix DIR] [--proton DIR]
 #       Back up the x64 files and install the ARM64 files into <instance>; set up the
 #       Wine prefix (ARM64 runtime dir, OpenXR runtime JSON, registry value).
@@ -101,14 +101,6 @@ cmd_fetch() {
         mkdir -p "$oxr" && mv "$oxr.tmp/UnityOpenXR.dll" "$oxr/" && rm -rf "$oxr.tmp"
     fi
 
-    local vc=$CACHE/vcredist-arm64
-    if [ ! -f "$vc/msvcp140.dll" ]; then
-        log "Microsoft VC++ ARM64 runtime"
-        mkdir -p "$vc.tmp"
-        curl -fsSL -o "$vc.tmp/vc_redist.arm64.exe" "$VCREDIST_URL"
-        python3 "$(tool vcredist_extract.py)" "$vc.tmp/vc_redist.arm64.exe" "$vc" vcruntime140.dll vcruntime140_1.dll msvcp140.dll
-        rm -rf "$vc.tmp"
-    fi
     log "fetched into $CACHE"
 }
 
@@ -120,11 +112,24 @@ install_file() { # <src> <instance-relative dst>
     if [ -e "$dst" ] && [ ! -e "$bak" ] && ! grep -qxF "$rel" "$INSTANCE/$STATE_DIR/added" 2>/dev/null; then
         mkdir -p "$(dirname "$bak")"
         cp -p "$dst" "$bak"
-    elif [ ! -e "$dst" ]; then
+    elif [ ! -e "$dst" ] && [ ! -e "$bak" ] &&
+         ! grep -qxF "$rel" "$INSTANCE/$STATE_DIR/added" 2>/dev/null; then
         echo "$rel" >> "$INSTANCE/$STATE_DIR/added"
     fi
     mkdir -p "$(dirname "$dst")"
     cp "$src" "$dst"
+}
+
+# Remove a file installed by an earlier release while keeping its original backup
+# for uninstall. Never remove an untracked file from the user's instance.
+retire_installed_file() {
+    local rel=$1 bak=$INSTANCE/$STATE_DIR/backup/$1
+    if [ -e "$bak" ] || grep -qxF "$rel" "$INSTANCE/$STATE_DIR/added" 2>/dev/null; then
+        rm -f "$INSTANCE/$rel"
+        local added=$INSTANCE/$STATE_DIR/added
+        awk -v retired="$rel" '$0 != retired' "$added" > "$added.tmp"
+        mv "$added.tmp" "$added"
+    fi
 }
 
 swap_bsipa_file() { # <instance-relative path> <replacement>
@@ -141,7 +146,7 @@ swap_bsipa_file() { # <instance-relative path> <replacement>
 # BSIPA (mod loader) needs two ARM64 fixes; applied only when BSIPA is installed.
 # Run install again after (re)installing BSIPA, since IPA.exe copies its x64 files back.
 #  - Doorstop (winhttp.dll): its x64 build can't load into the ARM64 player.
-#  - MonoMod.Core.dll: has no Windows ARM64 ABI, so Harmony can't patch anything.
+#  - MonoMod.Core.dll: BSIPA's 1.3.3 has no Windows ARM64 ABI; upstream 1.3.4 fixes it.
 install_bsipa_fixes() {
     [ -f "$INSTANCE/winhttp.dll" ] || return 0
     [ -f "$ARTIFACTS/winhttp.dll" ] || die "BSIPA is installed but $ARTIFACTS/winhttp.dll is missing; run build.sh"
@@ -150,13 +155,16 @@ install_bsipa_fixes() {
 
     local core=Libs/MonoMod.Core.dll
     [ -f "$INSTANCE/$core" ] || return 0
-    # Only replace the exact version BSIPA ships (or our own build of it from a previous install).
+    if [ -f "$ARTIFACTS/MonoMod.Core.dll" ] && cmp -s "$INSTANCE/$core" "$ARTIFACTS/MonoMod.Core.dll"; then
+        return 0
+    fi
+    # Only upgrade BSIPA's exact version (or our earlier patched build).
     if ! grep -qaE "$MONOMOD_CORE_MATCH" "$INSTANCE/$core"; then
-        echo "warning: $core is not MonoMod.Core $MONOMOD_CORE_VERSION; not replacing it (Harmony mods won't work)" >&2
+        echo "warning: $core is not the recognized BSIPA MonoMod.Core 1.3.3; leaving it unchanged" >&2
         return 0
     fi
     [ -f "$ARTIFACTS/MonoMod.Core.dll" ] || die "$ARTIFACTS/MonoMod.Core.dll is missing; run build.sh monomod"
-    log "BSIPA found: installing MonoMod.Core with the Windows ARM64 ABI"
+    log "BSIPA found: upgrading MonoMod.Core to upstream $MONOMOD_CORE_VERSION"
     swap_bsipa_file "$core" "$ARTIFACTS/MonoMod.Core.dll"
 }
 
@@ -263,13 +271,15 @@ cmd_install() {
         *) die "Proton is $(proton_version), but these DLLs were built for $PROTON_TAG; rebuild them (docs/BUILD.md)" ;;
     esac
     for f in lsteamclient_a64.dll wineopenxr_a64.dll steam_api64.dll openxr_loader.dll dxgi.dll d3d11.dll MonoPosixHelper.dll \
-             LIV_Bridge.dll; do
+             LIV_Bridge.dll ucrtbs64.dll vcruntime140.dll msvcp140.dll; do
         [ -f "$ARTIFACTS/$f" ] || die "$ARTIFACTS/$f missing; run build.sh first (or pass --artifacts)"
     done
+    [ -d "$PREFIX/pfx/drive_c" ] || die "Wine prefix $PREFIX/pfx does not exist; start any game with this prefix once first"
+    [ -f "$PROTON/files/lib/wine/aarch64-unix/lsteamclient.so" ] || die "$PROTON is not an ARM64 Proton"
     require_prefix_idle
     cmd_fetch
 
-    local unity=$CACHE/unity-$UNITY_VERSION/$PLAYER_VARIATION vc=$CACHE/vcredist-arm64
+    local unity=$CACHE/unity-$UNITY_VERSION/$PLAYER_VARIATION
     local oxr=$CACHE/unity-openxr-$UNITY_OPENXR_VERSION/UnityOpenXR.dll plugins="Beat Saber_Data/Plugins/ARM64"
     mkdir -p "$INSTANCE/$STATE_DIR"
     touch "$INSTANCE/$STATE_DIR/added"
@@ -284,10 +294,14 @@ cmd_install() {
     # Graphics (app dir wins over the ARM64EC DXVK Proton puts in system32)
     install_file "$ARTIFACTS/dxgi.dll" "dxgi.dll"
     install_file "$ARTIFACTS/d3d11.dll" "d3d11.dll"
-    # MSVC runtime (Wine's ARM64 C++ exception handling crashes on UnityOpenXR)
-    install_file "$vc/vcruntime140.dll" "vcruntime140.dll"
-    install_file "$vc/vcruntime140_1.dll" "vcruntime140_1.dll"
-    install_file "$vc/msvcp140.dll" "msvcp140.dll"
+    # Private Wine CRT: the wrappers import ucrtbs64 instead of the shared ucrtbase.
+    # No runtime registry overrides or Proton/prefix DLL replacement are needed.
+    install_file "$ARTIFACTS/ucrtbs64.dll" "ucrtbs64.dll"
+    install_file "$ARTIFACTS/vcruntime140.dll" "vcruntime140.dll"
+    install_file "$ARTIFACTS/msvcp140.dll" "msvcp140.dll"
+    # Pure ARM64 uses __CxxFrameHandler3; none of this game's ARM64 DLLs import
+    # vcruntime140_1. Retire the Microsoft DLL installed by previous releases.
+    retire_installed_file vcruntime140_1.dll
     # Native plugins, looked up by the ARM64 player in Plugins/ARM64
     install_file "$ARTIFACTS/steam_api64.dll" "$plugins/steam_api64.dll"
     # The game's LIV SDK has an x64-only bridge; without this stub it throws every frame

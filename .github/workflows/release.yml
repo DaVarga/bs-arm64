@@ -26,18 +26,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo NEEDRESTART_MODE=a apt-get install -y --no-install-recommends \
-            git curl python3 make gcc flex bison autoconf perl pkg-config \
+            git curl python3 make gcc patch flex bison autoconf perl pkg-config \
             cmake ninja-build meson glslang-tools
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
 
       # Toolchain, upstream checkouts and Wine's generated headers; keyed on the pins.
       - uses: actions/cache@v4
         with:
           path: deps
-          key: deps-${{ runner.arch }}-${{ hashFiles('versions.env', 'patches/**') }}
+          key: deps-${{ runner.arch }}-${{ hashFiles('versions.env', 'patches/**', 'build.sh') }}
 
       - name: Build
         run: ./build.sh
@@ -47,6 +43,16 @@ jobs:
           BS_ARM64_VERSION=${{ github.ref_type == 'tag' && github.ref_name || '' }} \
           BS_ARM64_REPO_URL=${{ github.server_url }}/${{ github.repository }} \
             ./build.sh package
+
+      - name: Check installer and package contents
+        run: |
+          bash -n build.sh install/bs-arm64.sh
+          python3 tools/test_installer_runtime.py
+          for package in dist/*.tar.gz; do
+            tar tzf "$package" | grep '/ucrtbs64.dll$'
+            tar tzf "$package" | grep '/vcruntime140.dll$'
+            tar tzf "$package" | grep '/msvcp140.dll$'
+          done
 
       - uses: actions/upload-artifact@v4
         with:

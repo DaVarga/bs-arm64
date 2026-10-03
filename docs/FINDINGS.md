@@ -79,8 +79,9 @@ In the game, app CPU time per frame went from 7.8–8.8 ms to 3.3 ms (see the RE
 
 - **Recenter / headset put on** (tracking world change) → `xrEndFrame: XR_ERROR_HANDLE_INVALID` →
   page fault in `ucrtbase+0x40d68`, which is `__CxxFrameHandler3`. UnityOpenXR throws a C++ exception
-  there, and Wine's ARM64 C++ EH dereferences NULL. Microsoft's ARM64 VC++ runtime next to the exe
-  fixes it. The Unity crash report shows the same `unityopenxr` frame 1,000 times, which is an
+  there, and Wine's ARM64 C++ EH dereferences NULL. Earlier releases used Microsoft's ARM64 VC++
+  runtime; the private Wine runtime now carries the upstream fix (see [UPSTREAM](UPSTREAM.md)).
+  The Unity crash report shows the same `unityopenxr` frame 1,000 times, which is an
   unwinder artifact, not recursion.
 - **Maps don't start** → "Could not load readonly beatmap level data", then back to the menu.
   `BeatmapLevelDataUtils.ReadAllTextFromData` gunzips the beatmap through `GZipStream` →
@@ -182,10 +183,8 @@ Symbols for Unity's ARM64 Mono are on Unity's symbol server
 
 - **Burst.** `lib_burst_generated.dll` is x64, and Burst jobs fall back to Mono. An ARM64 Burst library
   would need Unity's Burst compiler run for the game's assemblies; not attempted.
-- **Wine's ARM64 C++ EH bug.** Reported as [Wine bug 60399](https://bugs.winehq.org/show_bug.cgi?id=60399).
-  Once fixed, the Microsoft runtime isn't needed any more.
 - **MonoMod.** The Windows ARM64 default ABI is fixed in MonoMod.Core 1.3.4. BSIPA 4.3.7 still ships
-  1.3.3, so the installer swaps in a rebuilt `MonoMod.Core.dll`.
+  1.3.3, so the installer upgrades it to the unmodified upstream 1.3.4 DLL.
 - **SiraUtil XR restart vs. standby.** Why Unity doesn't recreate the eye textures when the headset
   goes into standby during SiraUtil's XR restart isn't investigated.
 - **LIV.** Capture needs a real ARM64 `LIV_Bridge.dll` from LIV; the stub only stops the errors.

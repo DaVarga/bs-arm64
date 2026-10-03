@@ -35,7 +35,7 @@ Beat Saber.exe (Unity ARM64 WindowsPlayer.exe)
 │    └─ openxr_loader.dll .............. Khronos loader, patched [built here]
 │         └─ wineopenxr_a64.dll ........ Proton wineopenxr PE half, aarch64 [built here]
 │              └─ wineopenxr.so ........ Proton's unix half (stock) ── SteamVR OpenXR
-└─ vcruntime140/msvcp140 ............... Microsoft ARM64 runtime (downloaded)
+└─ vcruntime140/msvcp140/ucrtbs64 ...... private Wine ARM64 runtime (built)
 ```
 
 ## Components
@@ -200,18 +200,27 @@ about once per frame, and BSIPA logged each one. That cost about 0.6 ms of CPU p
 [src/liv-bridge/liv_bridge.c](../src/liv-bridge/liv_bridge.c) exports the same 31 functions, and
 each returns 0. `LivCaptureIsActive()` is then false, and the SDK stays idle.
 
-### Microsoft VC++ runtime
+### Private Wine C++ runtime
 
 `UnityOpenXR` throws and catches a C++ exception when the tracking origin changes (recenter, headset
-put on). Wine's ARM64 `__CxxFrameHandler3` (in ucrtbase) dereferences NULL on this MSVC-compiled
-code, and the game crashes.
+put on). Proton's unpatched ARM64 `__CxxFrameHandler3` (in ucrtbase) dereferences NULL on this
+MSVC-compiled code, and the game crashes.
 
-Microsoft's own ARM64 `vcruntime140.dll`/`msvcp140.dll`/`vcruntime140_1.dll`, placed next to the exe,
-fix it. They're taken from `vc_redist.arm64.exe` by
-[`tools/vcredist_extract.py`](../tools/vcredist_extract.py), which carves the cabinets and unpacks
-them with bsdtar.
+Earlier releases downloaded Microsoft's ARM64 runtime to work around it. We now build Wine's
+`vcruntime140.dll` and `msvcp140.dll` with a private UCRT, `ucrtbs64.dll`, from the Wine source matching
+the bundled Proton. [patches/wine](../patches/wine) backports the upstream exception-handling fix and
+changes both import/forwarder references and the C++ library's dynamic UCRT lookups to the private name.
 
-Fixing Wine's ARM64 C++ EH would remove this dependency (see FINDINGS).
+Wine master merged a fix for this crash in
+[6964eb2](https://github.com/wine-mirror/wine/commit/6964eb2b018a9029b561124269e7ceec5bde8086)
+(2026-10-02). Our pinned Proton predates it, so we carry the backport in the private runtime
+(see [UPSTREAM](UPSTREAM.md#2-wine-arm64-c-exception-handling)).
+
+All three DLLs are ordinary ARM64 PE files, built without Wine's builtin marker. They live beside
+the ARM64 executable and leave the prefix's shared `ucrtbase.dll` and runtime overrides untouched.
+This also keeps Proton's x64 `steam.exe` launcher and retail/x64 Beat Saber working. No BSM update
+or launch-setting change is needed. Pure ARM64 uses `__CxxFrameHandler3`; `vcruntime140_1.dll` is not
+needed by this game's ARM64 binaries.
 
 ## Mods (BSIPA)
 
@@ -235,14 +244,13 @@ an ARM64 detour backend. Its `WindowsSystem` only defines the default calling co
 x64, so on Windows ARM64 it throws `Cannot use Mono system, because the underlying system doesn't
 provide a default ABI!`.
 
-[The fix](../patches/monomod/0001-windows-arm64-default-abi.patch) gives Windows ARM64 the same ABI
-description MonoMod uses on Linux and macOS ARM64. For Mono's own code, Windows ARM64 follows
-AAPCS64: `this` in x0, the return buffer in x8, and the same type classification.
+Upstream MonoMod.Core 1.3.4 includes the Windows ARM64 ABI, matching the description MonoMod uses
+on Linux and macOS ARM64. For Mono's own code, Windows ARM64 follows AAPCS64: `this` in x0, the
+return buffer in x8, and the same type classification.
 
-We rebuild MonoMod.Core from the exact commit BSIPA ships (`1.3.3+aa4a84749`, net452) with that
-change. The assembly identity (version, unsigned, references) is unchanged, so Harmony binds to it as
-is. The installer only replaces a `Libs/MonoMod.Core.dll` of that exact version. This belongs
-upstream in MonoMod.
+The release ships the unmodified upstream `net452` DLL from its SHA256-pinned NuGet package.
+The installer upgrades BSIPA's `1.3.3+aa4a84749` DLL and earlier bs-arm64 patched builds, preserving
+the original backup. Other versions are left alone. No local MonoMod patch or build is needed.
 
 **BSIPA's anti-piracy check.** `AntiPiracy.IsInvalid` refuses to load if any file whose name
 contains "steam" is 350 KB or larger in the game folder or `Beat Saber_Data/Plugins`. That heuristic
