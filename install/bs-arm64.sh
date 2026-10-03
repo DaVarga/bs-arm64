@@ -41,7 +41,6 @@ MODS=1
 FOVEATION=0
 
 BS_APP_ID=620980
-SUPPORTED_GAME_VERSION=$GAME_VERSION
 STATE_DIR=.bs-arm64             # inside the instance: backup + install record
 RUNTIME_DIR=drive_c/bs-arm64    # inside the prefix: WINEDLLPATH for the Wine builtins
 PLAYER_VARIATION=Variations/win_arm64_player_nondevelopment_mono
@@ -250,13 +249,20 @@ game_version() {
     echo "${v%%_*}" | grep . || echo unknown
 }
 
+# Unity engine version baked into the instance, e.g. "6000.0.40f1". The native runtime (player,
+# mono, plugins) is engine-specific, not Beat Saber-version specific, so this is what we gate on.
+engine_version() {
+    (grep -a -o '[0-9]\{4\}\.[0-9]\+\.[0-9]\+f[0-9]\+' "$1/Beat Saber_Data/globalgamemanagers" || true) | head -n1
+}
+
 cmd_install() {
     INSTANCE=${POSITIONAL[0]:-}
     [ -n "$INSTANCE" ] && [ -f "$INSTANCE/Beat Saber_Data/globalgamemanagers" ] || die "usage: install <Beat Saber instance dir>"
     INSTANCE=$(cd "$INSTANCE" && pwd)
-    local version
+    local version engine
     version=$(game_version "$INSTANCE")
-    [ "$version" = "$SUPPORTED_GAME_VERSION" ] || die "instance is Beat Saber $version; only $SUPPORTED_GAME_VERSION (Unity $UNITY_VERSION) is supported"
+    engine=$(engine_version "$INSTANCE")
+    [ "$engine" = "$UNITY_VERSION" ] || die "instance is Unity ${engine:-unknown} (Beat Saber $version); this runtime is built for Unity $UNITY_VERSION"
     # lsteamclient_a64/wineopenxr_a64 talk to this Proton's unix libraries: the build must match.
     case $(proton_version) in
         "$PROTON_TAG" | "$PROTON_TAG"-*) ;;
@@ -311,7 +317,7 @@ cmd_install() {
     echo "$MODS" > "$INSTANCE/$STATE_DIR/mods"
     setup_prefix
     proton_version > "$INSTANCE/$STATE_DIR/proton-version"
-    echo "$SUPPORTED_GAME_VERSION" > "$INSTANCE/$STATE_DIR/installed"
+    echo "$version" > "$INSTANCE/$STATE_DIR/installed"
     log "done"
     # Run by hand (not from a launcher such as BSManager): show how to start it
     [ -t 1 ] && log "start with: $0 launch '$INSTANCE'"
