@@ -147,6 +147,14 @@ install_bsipa_fixes() {
     log "BSIPA found: installing the ARM64 Doorstop (winhttp.dll)"
     swap_bsipa_file winhttp.dll "$ARTIFACTS/winhttp.dll"
 
+    # Reactive UI mods (e.g. BeatLeader) ship an x64 yoga.dll (Facebook Yoga, via P/Invoke) in
+    # Libs/Native. Replace it with our pure-ARM64 build so Reactive's flexbox layout can load.
+    if [ -f "$INSTANCE/Libs/Native/yoga.dll" ]; then
+        [ -f "$ARTIFACTS/yoga.dll" ] || die "a Reactive mod is installed but $ARTIFACTS/yoga.dll is missing; run build.sh yoga"
+        log "Reactive mod found: installing the ARM64 yoga.dll"
+        swap_bsipa_file Libs/Native/yoga.dll "$ARTIFACTS/yoga.dll"
+    fi
+
     local core=Libs/MonoMod.Core.dll
     [ -f "$INSTANCE/$core" ] || return 0
     # Only replace the exact version BSIPA ships (or our own build of it from a previous install).
@@ -162,7 +170,7 @@ install_bsipa_fixes() {
 # --no-mods after an install with mods: put BSIPA's own files back.
 restore_bsipa_files() {
     local rel
-    for rel in winhttp.dll Libs/MonoMod.Core.dll; do
+    for rel in winhttp.dll Libs/MonoMod.Core.dll Libs/Native/yoga.dll; do
         if [ -f "$INSTANCE/$STATE_DIR/backup/$rel" ] && [ -f "$INSTANCE/$rel" ] &&
             ! cmp -s "$INSTANCE/$STATE_DIR/backup/$rel" "$INSTANCE/$rel"; then
             log "no mods: restoring BSIPA's $rel"

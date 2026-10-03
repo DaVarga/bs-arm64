@@ -85,6 +85,12 @@ step_fetch() {
         "https://raw.githubusercontent.com/Unity-Technologies/mono/$UNITY_MONO_COMMIT/support/zlib-helper.c"
     [ -f "$DEPS/mono-LICENSE" ] || curl -fsSL -o "$DEPS/mono-LICENSE" \
         "https://raw.githubusercontent.com/Unity-Technologies/mono/$UNITY_MONO_COMMIT/LICENSE"
+    if [ ! -d "$DEPS/yoga-binding/.git" ]; then
+        git clone -q https://github.com/reactive-platform/yoga-binding.git "$DEPS/yoga-binding"
+        git -C "$DEPS/yoga-binding" checkout -q "$YOGA_BINDING_COMMIT"
+        # the pinned binding commit already points the lib/yoga submodule at $YOGA_COMMIT
+        git -C "$DEPS/yoga-binding" submodule update -q --init --recursive
+    fi
 }
 
 # widl/winebuild plus the IDL-generated and Vulkan headers that Wine-style PE
@@ -284,9 +290,35 @@ step_monomod() {
     cp "$src/artifacts/bin/MonoMod.Core/release_net452/MonoMod.Core.dll" "$OUT/"
 }
 
+# Reactive's UI mods (e.g. BeatLeader) P/Invoke Facebook Yoga as a native "yoga" DLL that only
+# ships for x64. Rebuild reactive-platform/yoga-binding (yogacore whole-archived, plus its logger
+# shim) as a pure ARM64 yoga.dll so Reactive's flexbox layout loads in the native player.
+step_yoga() {
+    log "yoga.dll (Reactive's Facebook Yoga P/Invoke bindings, ARM64)"
+    local src=$DEPS/yoga-binding b=$OBJ/yoga
+    chmod +x "$src/get_version.sh"
+    mkdir -p "$b"
+    cat > "$b/toolchain.cmake" <<EOF
+set(CMAKE_SYSTEM_NAME Windows)
+set(CMAKE_SYSTEM_PROCESSOR ARM64)
+set(CMAKE_C_COMPILER $CC)
+set(CMAKE_CXX_COMPILER $CXX)
+set(CMAKE_RC_COMPILER $TC/bin/aarch64-w64-mingw32-windres)
+set(CMAKE_FIND_ROOT_PATH $TC/aarch64-w64-mingw32)
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+EOF
+    # Run cmake from the source root: yoga-binding's get_version.sh reads ./lib/yoga/gradle.properties
+    # relative to the working directory, and the version.rc step needs it.
+    (cd "$src" && cmake -S "$src" -B "$b" -G Ninja -DCMAKE_TOOLCHAIN_FILE="$b/toolchain.cmake" \
+        -DCMAKE_BUILD_TYPE=Release >/dev/null && ninja -C "$b" >/dev/null)
+    cp "$b/libyoga_binding.dll" "$OUT/yoga.dll"
+}
+
 # The DLLs a release ships; the installer needs all of them.
 RELEASE_DLLS=(lsteamclient_a64.dll wineopenxr_a64.dll steam_api64.dll openxr_loader.dll dxgi.dll d3d11.dll
-              MonoPosixHelper.dll winhttp.dll MonoMod.Core.dll LIV_Bridge.dll)
+              MonoPosixHelper.dll winhttp.dll MonoMod.Core.dll LIV_Bridge.dll yoga.dll)
 
 # Release tarball in dist/: the DLLs, the installer and its helpers, docs, the upstream
 # licenses, and SOURCES.md (where the corresponding source is, for the LGPL parts).
@@ -337,6 +369,7 @@ PY
     cp "$DEPS/mono-LICENSE" "$l/Mono-LICENSE"
     cp "$DEPS/bsipa/Doorstop/LICENSE" "$l/Doorstop-LICENSE"
     cp "$DEPS/monomod/LICENSE" "$l/MonoMod-LICENSE"
+    cp "$DEPS/yoga-binding/lib/yoga/LICENSE" "$l/Yoga-LICENSE"
     cp "$TC/LICENSE.TXT" "$l/llvm-mingw-LICENSE.TXT"
 
     local rev
@@ -358,6 +391,8 @@ license is in \`licenses/\`; this project's own code is MIT (\`LICENSE\`).
 | Mono \`support/zlib-helper.c\` (Unity's fork) | https://github.com/Unity-Technologies/mono/blob/$UNITY_MONO_COMMIT/support/zlib-helper.c |
 | BSIPA's Doorstop | https://github.com/nike4613/BeatSaber-IPA-Reloaded/tree/$BSIPA_COMMIT/Doorstop |
 | MonoMod | https://github.com/MonoMod/MonoMod/tree/$MONOMOD_COMMIT |
+| yoga-binding (yoga.dll P/Invoke shim) | https://github.com/reactive-platform/yoga-binding/tree/$YOGA_BINDING_COMMIT |
+| Facebook Yoga (yoga.dll layout core) | https://github.com/facebook/yoga/tree/$YOGA_COMMIT |
 | llvm-mingw $LLVM_MINGW_VERSION (toolchain; statically linked runtime parts) | https://github.com/mstorsjo/llvm-mingw/releases/tag/$LLVM_MINGW_VERSION |
 
 The changes to upstream code are the patches in \`patches/\` of the bs-arm64 tree above.
@@ -428,7 +463,7 @@ EOF
 }
 
 ALL=(toolchain fetch wine-tools lsteamclient wineopenxr steam-api openxr-loader dxvk monoposixhelper doorstop monomod
-     liv-bridge)
+     liv-bridge yoga)
 STEPS=("$@")
 [ ${#STEPS[@]} -eq 0 ] && STEPS=("${ALL[@]}")
 for s in "${STEPS[@]}"; do
