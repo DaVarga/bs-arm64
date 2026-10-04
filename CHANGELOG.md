@@ -2,6 +2,27 @@
 
 All notable changes to bs-arm64. Each release is built for one Proton build (see its release notes).
 
+## [0.3.0] – 2026-10-04
+
+### Added
+- Beat Saber 1.40.9 through 1.44.0, besides 1.44.1: every version on Unity 6000.0.40f1. Mods work on
+  1.41.1 and later; BeatMods has no mods for 1.40.9–1.40.13.
+- `steam_api64.dll` also serves games built against older Steamworks SDKs (1.40.x uses SDK 1.57): it
+  exports their entry points (`SteamAPI_Init`, …), hands out its own interface versions when a game
+  asks for older ones, and passes the functions newer SDKs dropped to Steam's old interfaces.
+- `bs-arm64-manifest.json` on each release: the Unity engines, Beat Saber versions and BSIPA versions
+  it was tested with, for BSManager.
+- `STEAMAPI_ARM64_LOG=<file>` writes the Steam log to a file; a build with
+  `STEAM_API_CFLAGS=-DSHIM_TRACE_CALLS` logs every Steam call.
+
+### Changed
+- The installer checks the instance's Unity engine instead of its game version
+  ([#4](https://github.com/DaVarga/bs-arm64/pull/4), thanks @Felixoid) and refuses other engines
+  (e.g. 1.40.8, Unity 2022.3.33f1) before changing anything.
+
+### Docs
+- README: the supported game versions and what was tested on each.
+
 ## [0.2.2] – 2026-10-04
 
 ### Changed
