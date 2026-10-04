@@ -56,14 +56,34 @@ is used. The runtime build uses `--enable-archs=aarch64` on either Linux host ar
 ## Releases
 
 `./build.sh package` checks that every DLL is pure ARM64 (and `steam_api64.dll` below 350 KB), then
-writes `dist/bs-arm64-<version>-<PROTON_TAG>.tar.gz` plus its `.sha256`. The tarball holds the DLLs,
+writes `dist/bs-arm64-<version>-<PROTON_TAG>.tar.gz` plus its `.sha256`, and
+`dist/bs-arm64-manifest.json`. The tarball holds the DLLs,
 `bs-arm64.sh` with its helpers and `versions.env`, the docs, `SHA256SUMS`, the upstream licenses in
 `licenses/`, and `SOURCES.md`, which names the exact upstream sources (the LGPL source offer). The
 version is `$BS_ARM64_VERSION`, or else `git describe --tags`.
 
+The manifest lists what the release was tested with, from `versions.env`: the Unity engines
+(`UNITY_VERSION`), the Beat Saber versions (`BS_VERSIONS`) and the BSIPA versions (`BSIPA_VERSIONS`).
+BSManager offers the ARM64 tab only for those Beat Saber versions, and mod support only for those
+BSIPA versions:
+
+```json
+{
+  "version": "v0.3.0",
+  "proton": "proton-11.0-2c",
+  "unityVersions": ["6000.0.40f1"],
+  "bsVersions": ["1.40.9", "1.40.10", "…", "1.44.1"],
+  "bsipaVersions": ["4.3.7"]
+}
+```
+
+A version tested after the release can be added without a new build: edit the manifest and replace
+it on the release with `gh release upload <tag> bs-arm64-manifest.json --clobber`.
+
 [.github/workflows/release.yml](../.github/workflows/release.yml) does this on GitHub:
 
-- **Push a tag** `v*` → full build, package, and a GitHub release with the tarball and checksum.
+- **Push a tag** `v*` → full build, package, and a GitHub release with the tarball, its checksum and
+  the manifest.
 - **Run it manually** (Actions → release → Run workflow) → build and package only. The tarball is
   attached to the run as an artifact, which is useful as a dry run before tagging.
 
