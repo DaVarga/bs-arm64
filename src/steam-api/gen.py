@@ -92,14 +92,60 @@ for cls, ms in methods.items():
         pnames = [re.findall(r'(\w+)\s*$', p)[0] for p in plist]
         ptypes = [p[:p.rfind(n)].strip() for p, n in zip(plist, pnames)]
         args = ', '.join(pnames)
+        # Games built against an older SDK ask for older interface versions; hand them ours.
+        remap = '    pchVersion = shim_map_interface_version(pchVersion);\n' if cls == 'ISteamClient' and 'pchVersion' in pnames else ''
+        if remap:
+            out.append(f'S_API {ret} {fname}( {cls}* self{", " + params if params else ""} )\n'
+                       f'{{\n    SHIM_TRACE("{fname}");\n{remap}    return (({ret} (*)({", ".join(["void *"] + ptypes)}))VTBL(self)[{idx}])(self{", " + args if args else ""});\n}}\n')
+            continue
         if wname in retptr:
             fp = ', '.join(['void *', f'{ret} *'] + ptypes)
             out.append(f'S_API {ret} {fname}( {cls}* self{", " + params if params else ""} )\n'
-                       f'{{\n    {ret} r;\n    ((void (*)({fp}))VTBL(self)[{idx}])(self, &r{", " + args if args else ""});\n    return r;\n}}\n')
+                       f'{{\n    SHIM_TRACE("{fname}");\n    {ret} r;\n    ((void (*)({fp}))VTBL(self)[{idx}])(self, &r{", " + args if args else ""});\n    return r;\n}}\n')
         else:
             fp = ', '.join(['void *'] + ptypes)
             out.append(f'S_API {ret} {fname}( {cls}* self{", " + params if params else ""} )\n'
-                       f'{{\n    return (({ret} (*)({fp}))VTBL(self)[{idx}])(self{", " + args if args else ""});\n}}\n')
+                       f'{{\n    SHIM_TRACE("{fname}");\n    return (({ret} (*)({fp}))VTBL(self)[{idx}])(self{", " + args if args else ""});\n}}\n')
+
+# Interface versions this shim implements, for shim_map_interface_version()
+out.append('extern const char *const shim_interface_versions[] = {')
+out += [f'    "{v}",' for v in sorted(set(VERSIONS.values()))]
+out.append('    NULL,\n};\n')
+
+# GetISteamGenericInterface without the version mapping, for the legacy interfaces below
+gi = vtables[('ISteamClient', VERSIONS['ISteamClient'])].index('GetISteamGenericInterface')
+out.append('void *shim_raw_generic_interface( ISteamClient* self, HSteamUser hSteamUser, HSteamPipe hSteamPipe, const char * pchVersion )\n'
+           f'{{\n    return ((void * (*)(void *, HSteamUser, HSteamPipe, const char *))VTBL(self)[{gi}])(self, hSteamUser, hSteamPipe, pchVersion);\n}}\n')
+
+# Flat functions of older SDKs that this SDK dropped. They call lsteamclient's own
+# implementation of the old interface version, so Steam still answers them.
+#   (flat name, interface, version, method, return type, params after self, object)
+# object 'self': the caller passes the old interface itself (we don't map it to anything);
+# object 'legacy': the caller's object is our newer version; use the old one for this call.
+LEGACY = [
+    ('SteamAPI_ISteamUserStats_RequestCurrentStats', 'ISteamUserStats', 'STEAMUSERSTATS_INTERFACE_VERSION012',
+     'RequestCurrentStats', 'bool', '', 'legacy'),
+    ('SteamAPI_ISteamAppList_GetNumInstalledApps', 'ISteamAppList', 'STEAMAPPLIST_INTERFACE_VERSION001',
+     'GetNumInstalledApps', 'uint32', '', 'self'),
+    ('SteamAPI_ISteamAppList_GetInstalledApps', 'ISteamAppList', 'STEAMAPPLIST_INTERFACE_VERSION001',
+     'GetInstalledApps', 'uint32', 'AppId_t * pvecAppID, uint32 unMaxAppIDs', 'self'),
+    ('SteamAPI_ISteamAppList_GetAppName', 'ISteamAppList', 'STEAMAPPLIST_INTERFACE_VERSION001',
+     'GetAppName', 'int', 'AppId_t nAppID, char * pchName, int cchNameMax', 'self'),
+    ('SteamAPI_ISteamAppList_GetAppInstallDir', 'ISteamAppList', 'STEAMAPPLIST_INTERFACE_VERSION001',
+     'GetAppInstallDir', 'int', 'AppId_t nAppID, char * pchDirectory, int cchNameMax', 'self'),
+    ('SteamAPI_ISteamAppList_GetAppBuildId', 'ISteamAppList', 'STEAMAPPLIST_INTERFACE_VERSION001',
+     'GetAppBuildId', 'int', 'AppId_t nAppID', 'self'),
+]
+for fname, cls, ver, meth, ret, params, obj in LEGACY:
+    idx = vtables[(cls, ver)].index(meth)
+    plist = [p.strip() for p in params.split(',')] if params else []
+    pnames = [re.findall(r'(\w+)\s*$', p)[0] for p in plist]
+    ptypes = [p[:p.rfind(n)].strip() for p, n in zip(plist, pnames)]
+    target = 'self' if obj == 'self' else f'shim_legacy_user_interface("{ver}")'
+    fail = '0' if ret != 'bool' else 'false'
+    out.append(f'S_API {ret} {fname}( void* self{", " + params if params else ""} )\n'
+               f'{{\n    SHIM_TRACE("{fname}");\n    void *obj = {target};\n    if (!obj) return {fail};\n'
+               f'    return (({ret} (*)({", ".join(["void *"] + ptypes)}))VTBL(obj)[{idx}])(obj{", " + ", ".join(pnames) if pnames else ""});\n}}\n')
 open(os.path.join(OUT, 'flat_generated.cpp'), 'w').write('\n'.join(out))
 json.dump(report, open(os.path.join(OUT, 'versions.json'), 'w'), indent=1)
 open(os.path.join(OUT, 'manual.txt'), 'w').write('\n'.join(MANUAL)+'\n')

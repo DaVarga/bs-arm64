@@ -212,7 +212,8 @@ step_steam_api() {
     python3 "$src/gen_sdk_inline.py" "$sdk/steamnetworkingtypes.h" "$o/sdk_inline_impl.inc"
     # Size matters: BSIPA's anti-piracy check rejects any file named '*steam*' of 350 KB or
     # more in the game folder. No C++ runtime, no exceptions/RTTI, -Os, stripped.
-    local flags=(-Os -fno-exceptions -fno-rtti -I"$o/inc" -I"$src" -I"$o" -Wall -Wno-unused-parameter -Wno-unused-function -Wno-pragma-pack -Wno-unknown-pragmas)
+    # STEAM_API_CFLAGS=-DSHIM_TRACE_CALLS: debug build that logs every flat call
+    local flags=(-Os -fno-exceptions -fno-rtti -I"$o/inc" -I"$src" -I"$o" -Wall -Wno-unused-parameter -Wno-unused-function -Wno-pragma-pack -Wno-unknown-pragmas ${STEAM_API_CFLAGS:-})
     $CXX -c "${flags[@]}" "$o/flat_generated.cpp" -o "$o/flat_generated.o"
     $CXX -c "${flags[@]}" "$src/steam_api_core.cpp" -o "$o/steam_api_core.o"
     $CXX -c "${flags[@]}" "$src/steam_api_helpers.cpp" -o "$o/steam_api_helpers.o"
