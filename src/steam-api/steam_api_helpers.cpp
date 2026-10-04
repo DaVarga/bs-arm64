@@ -202,6 +202,18 @@ S_API void SteamAPI_SteamNetworkingIdentity_SetSteamID64(SteamNetworkingIdentity
 S_API uint64 SteamAPI_SteamNetworkingIdentity_GetSteamID64(SteamNetworkingIdentity *self) { return self->GetSteamID64(); }
 S_API bool SteamAPI_SteamNetworkingIdentity_SetXboxPairwiseID(SteamNetworkingIdentity *self, const char *pszString) { return self->SetXboxPairwiseID(pszString); }
 S_API const char *SteamAPI_SteamNetworkingIdentity_GetXboxPairwiseID(SteamNetworkingIdentity *self) { return self->GetXboxPairwiseID(); }
+/* Dropped after SDK 1.58 (k_ESteamNetworkingIdentityType_GoogleStadia = 19, a 64-bit ID). */
+static const ESteamNetworkingIdentityType IDENTITY_GOOGLE_STADIA = (ESteamNetworkingIdentityType)19;
+S_API void SteamAPI_SteamNetworkingIdentity_SetStadiaID(SteamNetworkingIdentity *self, uint64 id)
+{
+    self->m_eType = IDENTITY_GOOGLE_STADIA;
+    self->m_cbSize = sizeof(self->data.m_steamID64);
+    self->data.m_steamID64 = id;
+}
+S_API uint64 SteamAPI_SteamNetworkingIdentity_GetStadiaID(SteamNetworkingIdentity *self)
+{
+    return self->m_eType == IDENTITY_GOOGLE_STADIA ? self->data.m_steamID64 : 0;
+}
 S_API void SteamAPI_SteamNetworkingIdentity_SetPSNID(SteamNetworkingIdentity *self, uint64 id) { self->SetPSNID(id); }
 S_API uint64 SteamAPI_SteamNetworkingIdentity_GetPSNID(SteamNetworkingIdentity *self) { return self->GetPSNID(); }
 S_API void SteamAPI_SteamNetworkingIdentity_SetIPAddr(SteamNetworkingIdentity *self, const SteamNetworkingIPAddr &addr) { self->SetIPAddr(addr); }
