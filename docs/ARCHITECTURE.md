@@ -2,7 +2,8 @@
 
 ## Starting point
 
-Beat Saber 1.44.1 is a Unity 6000.0.40f1 game, built with the Mono scripting backend for Windows x64.
+Beat Saber 1.40.9 through 1.44.1 are Unity 6000.0.40f1 games, built with the Mono scripting backend
+for Windows x64. Everything below was worked out on 1.44.1.
 The Steam Frame runs it through Proton 11.0 (ARM64), in these steps:
 
 1. Wine's own code (ntdll, kernel32, …) is ARM64/ARM64X.
@@ -83,7 +84,7 @@ Loading by full path is what makes it work: Wine resolves a builtin through `WIN
 it finds a builtin-marked file on the normal search path, or one given by path.
 
 **steam_api64.dll.** This is a new implementation of the Steamworks SDK 1.61 flat API. It
-exports all 1,089 symbols of the real DLL.
+exports all 1,089 symbols of the real DLL, plus 11 entry points of older SDKs (1,100 in total).
 
 - **Interface wrappers.** [`gen.py`](../src/steam-api/gen.py) generates 946 `SteamAPI_ISteamX_Method`
   wrappers from `steam_api_flat.h`. Each one calls into the interface's vtable. Vtable indices come
@@ -105,11 +106,28 @@ exports all 1,089 symbols of the real DLL.
   - the flat accessors (`SteamAPI_SteamUser_v023`, …)
   - `SteamNetworkingIPAddr`/`Identity`/`servernetadr_t` helpers
   - `ISteamNetworkingUtils` inline convenience methods
+- **Older SDKs.** Beat Saber 1.40.9–1.40.13 use Steamworks.NET 20.2, built for SDK 1.57. Valve's
+  `steam_api64.dll` changes its exports between SDK versions, and a game ships the one it was built
+  with; ours serves both:
+  - It exports the old entry points: `SteamAPI_Init`, `SteamInternal_GameServer_Init`,
+    `SteamAPI_ISteamClient_GetISteamAppList` and `SteamNetworkingIdentity` `Get`/`SetStadiaID`.
+  - When a game asks for an older version of an interface this DLL implements
+    (`STEAMUSERSTATS_INTERFACE_VERSION012`, `SteamClient020`, …), it gets ours (`…013`,
+    `SteamClient021`) instead. The generated wrappers call our versions' vtables, and a game calls the
+    flat functions by name, so its calls land on the right methods. `shim_map_interface_version`
+    does this in `FindOrCreateUserInterface`, `SteamInternal_CreateInterface` and the
+    `ISteamClient::GetISteamX` wrappers. Newer versions than ours are left alone.
+  - Flat functions that newer SDKs dropped (`ISteamUserStats_RequestCurrentStats`, the
+    `ISteamAppList` methods) call lsteamclient's implementation of the old interface version, so Steam
+    still answers them (`LEGACY` in `gen.py`).
 - **ABI rule.** This DLL is compiled with the Itanium C++ ABI (mingw). It never makes a C++ virtual call.
   All calls into Steam objects go through typed function pointers taken from the MSVC-layout
   vtables.
 
-Env var `STEAMAPI_ARM64_LOG=1` logs init to stderr.
+Env var `STEAMAPI_ARM64_LOG=1` logs init and interface version mapping to stderr; any other value is
+a file to append to (a Windows path, e.g. `Z:\tmp\steam_api.log`). A build with
+`STEAM_API_CFLAGS=-DSHIM_TRACE_CALLS ./build.sh steam-api` also logs every flat call, callback and call
+result; it's for debugging only.
 
 `steam_api64.dll` looks for `lsteamclient_a64.dll` in this order:
 1. the name in `STEAMAPI_ARM64_CLIENT_DLL`
@@ -258,7 +276,7 @@ catches Steam emulators. Our DLLs are not emulators: they go through the real St
 ownership check. We keep them out of the heuristic's range legitimately:
 - `lsteamclient_a64.dll` lives only in the prefix runtime directory, `C:\bs-arm64\aarch64-windows`.
   `steam_api64.dll` looks for it there.
-- `steam_api64.dll` is 91 KB: no C++ runtime, `-Os`, stripped. The real x64 one is 319 KB.
+- `steam_api64.dll` is 96 KB: no C++ runtime, `-Os`, stripped. The real x64 one is 319 KB.
   `build.sh` fails if it grows to 350 KB.
 
 ## Wine prefix and launch environment

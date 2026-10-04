@@ -7,7 +7,9 @@ The rest of this page describes the installer itself.
 The installer is `install/bs-arm64.sh`. It runs on the device (Steam Frame, SteamOS) and needs only
 `bash`, `python3`, `curl`, `tar` and `bsdtar`, which ship with SteamOS. It also needs:
 
-- a **Beat Saber 1.44.1** instance, e.g. from BSManager (`~/.local/share/BSManager/BSInstances/1.44.1`)
+- a Beat Saber instance on **Unity 6000.0.40f1** (1.40.9 through 1.44.1), e.g. from BSManager
+  (`~/.local/share/BSManager/BSInstances/1.44.1`). `install` reads the engine from
+  `Beat Saber_Data/globalgamemanagers` and refuses other engines before changing anything.
 - **Proton 11.0 (ARM64)**, the exact version the DLLs were built for
 - the Wine prefix already created. The default is BSManager's shared prefix
   `~/.local/share/BSManager/SharedContent/compatdata`, which Proton creates the first time Beat Saber
@@ -124,6 +126,7 @@ SteamVR must be running, which it always is in the Frame's game mode. SteamVR re
 
 | Symptom | Cause |
 |---|---|
+| `instance is Unity 2022.3.33f1 (Beat Saber 1.40.8); this runtime is built for Unity 6000.0.40f1` | the game version runs on another Unity engine; it isn't supported |
 | `[Steam] Not being able to initialize the platform` | `steam_api64.dll` not in `Plugins/ARM64`, or `WINEDLLPATH` missing; run `launch --debug` and look for `steam_api64(arm64)` lines |
 | `DllNotFoundException: UnityOpenXR` | `Plugins/ARM64/UnityOpenXR.dll` missing, or msvcp140/vcruntime140 missing |
 | `xrCreateInstance: XR_ERROR_RUNTIME_UNAVAILABLE` | registry value or JSON missing; `launch --debug` shows the loader's messages as `debugstr` lines |

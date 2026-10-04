@@ -415,7 +415,7 @@ EOF
     (cd "$dist" && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
 
     cat > "$dist/RELEASE_NOTES.md" <<EOF
-Runs Beat Saber **$GAME_VERSION** as a native Windows ARM64 program under ARM64 Proton (tested on the
+Runs Beat Saber **$GAME_VERSIONS** as a native Windows ARM64 program under ARM64 Proton (tested on the
 Steam Frame) instead of emulating the x64 build with FEX.
 
 ## Works with
@@ -423,9 +423,9 @@ Steam Frame) instead of emulating the x64 build with FEX.
 | | |
 |---|---|
 | Proton | **$PROTON_TAG** only: Steam's "Proton 11.0 (ARM64)" at that build |
-| Beat Saber | **$GAME_VERSION** only (Unity $UNITY_VERSION), e.g. a BSManager instance |
+| Beat Saber | **$GAME_VERSIONS** (Unity $UNITY_VERSION), e.g. a BSManager instance; the installer refuses other Unity engines |
 | VR | SteamVR (OpenXR) |
-| Mods | BSIPA 4.3.7 with Harmony mods (tested: SiraUtil, BSML, SongCore, BS Utils, CustomSabersLite, HitScoreVisualizer) |
+| Mods | 1.41.1 and later: BSIPA 4.3.7 with Harmony mods (tested: SiraUtil, BSML, SongCore, BS Utils, CustomSabersLite, HitScoreVisualizer). BeatMods has no mods for 1.40.9–1.40.13. |
 
 Check your Proton build before installing; it must print \`$PROTON_TAG\` (with an \`-arm64\` suffix):
 
@@ -441,7 +441,7 @@ that Proton's own libraries. When Steam updates Proton, wait for a matching rele
 Easiest: the **ARM64 tab** of the Steam Frame BSManager fork
 (https://github.com/DaVarga/bs-manager) installs this release for you. By hand:
 
-Work on a **copy** of your $GAME_VERSION instance (BSManager can duplicate instances). The Wine prefix
+Work on a **copy** of your instance (BSManager can duplicate instances). The Wine prefix
 must exist: launch any game with it once.
 
 \`\`\`sh
