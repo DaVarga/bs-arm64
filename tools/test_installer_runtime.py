@@ -32,7 +32,7 @@ class InstallerRuntimeTests(unittest.TestCase):
         }
         for name, data in self.originals.items():
             self.write(self.instance / name, data)
-        self.write(self.instance / 'Beat Saber_Data/globalgamemanagers', b'1.44.1_20239')
+        self.write(self.instance / 'Beat Saber_Data/globalgamemanagers', f'\0{PINS["UNITY_VERSION"]}\0 1.44.1_20239'.encode())
         self.write(self.prefix / 'pfx/drive_c/windows/system32/ucrtbase.dll', b'prefix UCRT unchanged')
         self.write(self.prefix / 'pfx/user.reg', b'prefix runtime settings unchanged')
         self.write(self.proton / 'version', f'0 {PINS["PROTON_TAG"]}-arm64\n'.encode())
@@ -95,6 +95,12 @@ class InstallerRuntimeTests(unittest.TestCase):
         self.assert_prefix_unchanged()
         self.run_installer('uninstall')
         self.assert_uninstalled()
+
+    def test_other_unity_engine_fails_before_changing_instance(self):
+        self.write(self.instance / 'Beat Saber_Data/globalgamemanagers', b'\0' + b'2022.3.33f1\0 1.40.8_7400')
+        self.assertIn('Unity 2022.3.33f1', self.run_installer('install', success=False))
+        self.assertFalse((self.instance / '.bs-arm64').exists())
+        self.assert_prefix_unchanged()
 
     def test_upgrade_retires_legacy_added_runtime(self):
         self.run_installer('install')
