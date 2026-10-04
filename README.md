@@ -6,8 +6,9 @@
 > **[How to install on the Steam Frame](https://github.com/DaVarga/bs-manager/blob/bs-arm64/docs/steam-frame.md)**
 
 Run Beat Saber as a **native Windows ARM64** program on ARM64 Linux under Proton, tested on the
-**Steam Frame**, instead of emulating the x64 build with FEX. Any game build on the same Unity engine
-(6000.0.40f1) works, which today means 1.42.x through 1.44.1; the benchmarks below are from 1.44.1.
+**Steam Frame**, instead of emulating the x64 build with FEX. Every game version on Unity 6000.0.40f1
+works, which means 1.40.9 through 1.44.1 (see [Game versions](#game-versions)); the benchmarks below
+are from 1.44.1.
 
 The game's engine and C# code both run natively. Only Proton's small `steam.exe` launcher stays x64.
 
@@ -77,8 +78,26 @@ copy `UserData` over from a Windows install.
 | OpenXR on SteamVR, controllers, recenter | ✅ |
 | Burst-compiled code | ⚠️ x64 `lib_burst_generated.dll` can't load; Unity falls back to managed code |
 | LIV mixed-reality capture | ❌ not available (a stub `LIV_Bridge.dll` reports "no capture") |
-| Mods: BSIPA 4.3.7 + Harmony (tested: SiraUtil, BSML, SongCore, BS Utils) | ✅ with the ARM64 Doorstop + upstream MonoMod.Core 1.3.4 |
-| Game versions | ✅ any build on Unity 6000.0.40f1 (1.42.x through 1.44.1); other engines unsupported |
+| Mods: BSIPA 4.3.7 + Harmony (tested: SiraUtil, BSML, SongCore, BS Utils) | ✅ with the ARM64 Doorstop + upstream MonoMod.Core 1.3.4, on 1.41.1 and later |
+| Game versions | ✅ 1.40.9 through 1.44.1 (Unity 6000.0.40f1); other Unity engines aren't supported |
+
+## Game versions
+
+The native runtime depends on the game's Unity engine, not on its version: the installer reads the
+engine from the instance's `globalgamemanagers` and refuses any other than 6000.0.40f1. Tested on the
+Frame, to the main menu with Steam and VR:
+
+| Beat Saber | Steamworks SDK | Without mods | With mods |
+|---|---|---|---|
+| 1.40.8 and older | | ❌ Unity 2022.3.33f1, the installer refuses it | |
+| 1.40.9 – 1.40.13 | 1.57 | ✅ Steam (ownership, DLC, leaderboards), VR | BeatMods has no mods for these versions |
+| 1.41.1 | 1.61 | ✅ | ✅ |
+| 1.42.0 – 1.42.3 | 1.61 | ✅ | ✅ |
+| 1.43.0, 1.44.0, 1.44.1 | 1.61 | ✅ | ✅ |
+
+`steam_api64.dll` implements the SDK 1.61 flat API and also serves games built against older SDKs:
+it exports their entry points (e.g. `SteamAPI_Init`) and hands out its own interface versions when a
+game asks for older ones ([ARCHITECTURE.md](docs/ARCHITECTURE.md#steam-steam_api64dll--lsteamclient_a64dll)).
 
 ## How it works
 
@@ -89,7 +108,7 @@ piece around it that only existed as x64 or ARM64EC has an ARM64 replacement. De
 | Piece | Source |
 |---|---|
 | Unity player, `UnityPlayer.dll`, Mono runtime | Unity's official Windows ARM64 player (downloaded) |
-| `steam_api64.dll` | **new**: Steamworks SDK 1.61 flat API ([src/steam-api](src/steam-api)) |
+| `steam_api64.dll` | **new**: Steamworks SDK 1.61 flat API, plus the entry points of older SDKs ([src/steam-api](src/steam-api)) |
 | `lsteamclient_a64.dll` | Proton's lsteamclient, Windows half, rebuilt for pure aarch64 |
 | `wineopenxr_a64.dll` | Proton's wineopenxr, Windows half, rebuilt for pure aarch64 |
 | `openxr_loader.dll` | Khronos loader 1.1.45, patched ([patches/openxr-loader](patches/openxr-loader)) |
@@ -106,7 +125,7 @@ piece around it that only existed as x64 or ARM64EC has an ARM64 replacement. De
 
 The Steam Frame fork of BSManager, [DaVarga/bs-manager](https://github.com/DaVarga/bs-manager)
 (ARM64 AppImage on its releases page), fixes BSManager for ARM64 Proton and adds an **ARM64 tab**
-next to Mods for 1.44.1 instances. That tab downloads the release matching your Proton build and
+next to Mods for supported versions. That tab downloads the release matching your Proton build and
 installs, reinstalls or removes it, with or without mod support. It also re-applies the ARM64 mod
 loader fixes after BSIPA is installed, and sets up the launch environment.
 
@@ -119,14 +138,14 @@ On a fresh Frame, three things trip people up:
   rendering in the x64 game, use
   `FDM_DEBUG=enable VK_INSTANCE_LAYERS=VK_LAYER_VALVE_rpo:VK_LAYER_VALVE_fdm_injection %command%`
   instead.
-- Launch 1.44.1 once before clicking Install in the ARM64 tab. That creates BSManager's Wine prefix.
+- Launch the version once before clicking Install in the ARM64 tab. That creates BSManager's Wine prefix.
   If Install already failed with `Wine prefix … does not exist`, the version is left half changed;
   launch another version once, then click Install again.
 
 ### By hand
 
-On the Steam Frame, with BSManager, a Unity 6000.0.40f1 instance (1.42.x or 1.44.1), and
-"Proton 11.0 (ARM64)" (the install guard checks the instance's Unity engine, not its game version):
+On the Steam Frame, with BSManager, an instance of 1.40.9 through 1.44.1 (Unity 6000.0.40f1), and
+"Proton 11.0 (ARM64)":
 
 Download the release tarball that matches your Proton version (`<Proton dir>/version`) from the
 [releases page](https://github.com/DaVarga/bs-arm64/releases), then on the Frame:
@@ -153,7 +172,7 @@ See [docs/INSTALL.md](docs/INSTALL.md) for every file that gets touched.
 
 > **Status:** verified end to end on the Frame. A clean `build.sh` output was installed with
 > `install/bs-arm64.sh` into a fresh copy of a BSManager 1.44.1 instance: Steam, VR and maps all work.
-> The same runtime also installs on 1.42.x instances, since they share the 6000.0.40f1 engine.
+> The other versions in [Game versions](#game-versions) were tested to the main menu with Steam and VR.
 
 ## Docs
 

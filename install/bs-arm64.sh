@@ -1,5 +1,5 @@
 #!/bin/bash
-# Turn a Beat Saber 1.44.1 install into a native ARM64 build and run it on ARM64 Proton
+# Turn a Beat Saber install on Unity 6000.0.40f1 (1.40.9–1.44.1) into a native ARM64 build and run it on ARM64 Proton
 # (e.g. the Steam Frame).
 #
 #   bs-arm64.sh fetch     [--cache DIR]

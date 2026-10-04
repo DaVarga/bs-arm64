@@ -69,5 +69,5 @@ jobs:
         run: |
           source versions.env
           gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.tar.gz.sha256 \
-            --verify-tag --title "$GITHUB_REF_NAME ($PROTON_TAG, Beat Saber $GAME_VERSION)" \
+            --verify-tag --title "$GITHUB_REF_NAME ($PROTON_TAG, Beat Saber $GAME_VERSIONS)" \
             --notes-file dist/RELEASE_NOTES.md

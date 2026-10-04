@@ -95,7 +95,8 @@ numbers change between versions. When Steam updates "Proton 11.0 (ARM64)":
 ## Checks
 
 - Every output DLL must be `IMAGE_FILE_MACHINE_ARM64` (`0xaa64`).
-- `steam_api64.dll` must export everything the real one does (1,089 symbols).
+- `steam_api64.dll` must export everything the real SDK 1.61 one does (1,089 symbols), plus the
+  older SDKs' entry points (1,100 in total).
 - [tools/smoketest.cpp](../tools/smoketest.cpp): a minimal ARM64 exe that loads `lsteamclient_a64.dll`
   and prints your SteamID, login state, app ID and persona name. Build and run:
   ```sh
