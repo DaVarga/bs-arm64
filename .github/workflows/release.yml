@@ -60,6 +60,7 @@ jobs:
           path: |
             dist/*.tar.gz
             dist/*.sha256
+            dist/bs-arm64-manifest.json
             dist/RELEASE_NOTES.md
 
       - name: Create release
@@ -68,6 +69,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           source versions.env
-          gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.tar.gz.sha256 \
-            --verify-tag --title "$GITHUB_REF_NAME ($PROTON_TAG, Beat Saber $GAME_VERSIONS)" \
+          gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.tar.gz.sha256 dist/bs-arm64-manifest.json \
+            --verify-tag --title "$GITHUB_REF_NAME ($PROTON_TAG, Beat Saber ${BS_VERSIONS%% *}–${BS_VERSIONS##* })" \
             --notes-file dist/RELEASE_NOTES.md

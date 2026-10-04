@@ -335,6 +335,7 @@ step_package() {
     local version=${BS_ARM64_VERSION:-$(git -C "$ROOT" describe --tags --always --dirty 2>/dev/null || echo dev)}
     local name=bs-arm64-$version-$PROTON_TAG dist=$ROOT/dist
     local stage=$dist/$name repo=${BS_ARM64_REPO_URL:-https://github.com/DaVarga/bs-arm64}
+    local bs_range="${BS_VERSIONS%% *}–${BS_VERSIONS##* }"
     log "package $name"
     local f
     for f in "${RELEASE_DLLS[@]}"; do
@@ -414,8 +415,16 @@ EOF
     tar -C "$dist" --owner=0 --group=0 --numeric-owner --sort=name -czf "$dist/$name.tar.gz" "$name"
     (cd "$dist" && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
 
+    # Read by BSManager: which Beat Saber versions this release was tested with
+    python3 - "$version" "$PROTON_TAG" "$UNITY_VERSION" "$BS_VERSIONS" "$BSIPA_VERSIONS" > "$dist/bs-arm64-manifest.json" <<'PY'
+import json, sys
+version, proton, unity, bs, bsipa = sys.argv[1:]
+print(json.dumps({"version": version, "proton": proton, "unityVersions": unity.split(),
+                  "bsVersions": bs.split(), "bsipaVersions": bsipa.split()}, indent=2))
+PY
+
     cat > "$dist/RELEASE_NOTES.md" <<EOF
-Runs Beat Saber **$GAME_VERSIONS** as a native Windows ARM64 program under ARM64 Proton (tested on the
+Runs Beat Saber **$bs_range** as a native Windows ARM64 program under ARM64 Proton (tested on the
 Steam Frame) instead of emulating the x64 build with FEX.
 
 ## Works with
@@ -423,7 +432,7 @@ Steam Frame) instead of emulating the x64 build with FEX.
 | | |
 |---|---|
 | Proton | **$PROTON_TAG** only: Steam's "Proton 11.0 (ARM64)" at that build |
-| Beat Saber | **$GAME_VERSIONS** (Unity $UNITY_VERSION), e.g. a BSManager instance; the installer refuses other Unity engines |
+| Beat Saber | **$bs_range** (Unity $UNITY_VERSION), e.g. a BSManager instance; the installer refuses other Unity engines |
 | VR | SteamVR (OpenXR) |
 | Mods | 1.41.1 and later: BSIPA 4.3.7 with Harmony mods (tested: SiraUtil, BSML, SongCore, BS Utils, CustomSabersLite, HitScoreVisualizer). BeatMods has no mods for 1.40.9–1.40.13. |
 
