@@ -14,17 +14,63 @@ The game's engine and C# code both run natively. Only Proton's small `steam.exe`
 
 ## Results on the Steam Frame
 
-Numbers come from SteamVR's per-session compositor stats, at a 120 Hz target:
+Beat Saber 1.44.1, the same replay (STARLIGHT, Expert+, 1,050 notes) five times on each build,
+alternating:
 
-| Build | App CPU / frame | App GPU / frame | Frames reprojected |
-|---|---|---|---|
-| x64 1.44.1 via FEX (73k frames) | 7.8 ms | 6.6 ms | 26 % |
-| x64 1.44.1 via FEX (50k frames) | 8.8 ms | 7.8 ms | 34 % |
-| **native ARM64 1.44.1 (76k frames)** | **3.3 ms** | **3.3 ms** | **1.3 %** |
+| | Native ARM64 | x64 via FEX |
+|---|---|---|
+| Frames rendered (same 184 s song) | ~22,150 (~120 fps) | ~19,130 (~104 fps) |
+| Mean frame time | 8.34 ms | 9.66 ms |
+| 99th percentile frame time | 10.4 ms | 18.5 ms |
+| Frames over 9.5 ms | 4.5 % | 35.1 % |
+| Reprojected frames (SteamVR) | 1.0 % | 30.9 % |
+| Dropped frames (SteamVR) | 2 | 159–176 |
+| App CPU time per frame (SteamVR) | 4.24 ms | 8.39 ms |
+| App GPU time per frame (SteamVR) | 3.26 ms | 8.24 ms |
+| CPU temperature, mean (max) | 65.5 °C (74.9) | 75.6 °C (83.6) |
+| GPU temperature, mean (max) | 56.8 °C (59.5) | 71.0 °C (77.5) |
+| Fast core (X4) clock | 2294 MHz | 2797 MHz |
+| GPU clock | 901 MHz | 897 MHz |
+| System power during the song | 14.4 W | 19.2 W |
+| GPU power | 2.0 W | 3.4 W |
+| CPU power | 3.4 W | 4.2 W |
 
-With FEX, the retail game ran at about 90 fps and dipped to about 55. With the native build, the frame drops are gone.
+Both builds ran with the same configuration:
 
-A CPU micro-benchmark run inside the game's Mono runtime shows the same thing: native code is
+- **2160 × 2160 per eye at 120 Hz** (SteamVR's per-app resolution and refresh rate for Beat Saber).
+- **Foveated rendering on**: SteamVR's own (`FDM_DEBUG=enable`, Steam's default strength), see
+  [Foveated rendering](#foveated-rendering-optional).
+- The same `settings.ini`, changed from the game's defaults: anti-aliasing 2× (default 4×), Bloom Post
+  Process off (`quality.main_fx`), mirror off, smoke off, Screen Distortion off
+  (`quality.screen_displacement_fx`), shockwave particles 0.
+- Proton 11.0-2c (ARM64), the same Wine prefix, the fan at a fixed speed.
+- The game with only BSIPA and a test plugin that plays the replay through the game's own systems:
+  the sabers and the view follow the recorded hands and head, and the recorded cuts go through the
+  game's cut handling (debris, effects, sounds, score). Every run cut all 1,050 notes.
+
+Frame times are per frame from the game; reprojected and dropped frames and app CPU/GPU time come
+from SteamVR's per-session compositor stats; temperatures, clocks and power are sampled every ~2.5 s
+while the song plays. Between runs the spread was under 0.1 ms for CPU and GPU time.
+
+The native build halves the CPU time per frame. The GPU time is lower too, partly because the ARM64 build
+brings its own DXVK build, which doesn't write the multisampled image back after resolving it (see
+[CHANGELOG](CHANGELOG.md) 0.1.6).
+
+With the game's default graphics settings (anti-aliasing 4×, Bloom Post Process, mirror, smoke and
+Screen Distortion on, shockwave particles 1), everything else the same, the GPU is the limit on both
+builds and the native build barely helps (two runs each):
+
+| Default graphics settings | Native ARM64 | x64 via FEX |
+|---|---|---|
+| Frames rendered (same 184 s song) | ~7,240 (~39 fps) | ~7,200 (~39 fps) |
+| Mean frame time | 25.5 ms | 25.7 ms |
+| Reprojected frames (SteamVR) | 81 % | 89 % |
+| App GPU time per frame (SteamVR) | 18.6 ms | 20.3 ms |
+
+At 2160 × 2160 and 120 Hz, lower these settings first; which of them costs the most wasn't measured
+separately.
+
+A CPU micro-benchmark run inside the game's Mono runtime shows the CPU gain on its own: native code is
 2–3× faster than FEX-translated x64 on everything except `Vector3` math (see
 [docs/FINDINGS.md](docs/FINDINGS.md#benchmark)).
 
@@ -53,7 +99,7 @@ Rendering**. With SteamVR's eye tracking the sharp area follows your eyes.
 By hand, start the game with `bs-arm64.sh launch --foveation`. That sets what Steam sets:
 `FDM_DEBUG=enable` and `VK_INSTANCE_LAYERS=VK_LAYER_VALVE_rpo:VK_LAYER_VALVE_fdm_injection`. Steam's
 default is mild; `FDM_DEBUG=enable,med` or `FDM_DEBUG=enable,hi` saves more and is easier to notice.
-BSManager's ARM64 tab doesn't set these yet.
+The BSManager fork (v1.6.0-frame.4 or later) sets them from Steam's Foveated Rendering switch.
 
 | STARLIGHT replay, 1776 px per eye, no MSAA, 120 Hz | GPU / frame | CPU / frame | System power |
 |---|---|---|---|
