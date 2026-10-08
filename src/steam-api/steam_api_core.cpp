@@ -51,7 +51,7 @@ static size_t g_user_interface_count;
 S_API ISteamClient *g_pSteamClientGameServer = NULL;
 
 /* STEAMAPI_ARM64_LOG=1 logs to stderr; any other value is a file to append to. */
-static void shim_log(const char *fmt, ...)
+void shim_log(const char *fmt, ...)
 {
     static int enabled = -1;
     static FILE *out;
@@ -736,6 +736,7 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, void *reserved)
     {
         DisableThreadLibraryCalls(instance);
         InitializeCriticalSection(&g_cs);
+        fpcr_fix();
     }
     return TRUE;
 }

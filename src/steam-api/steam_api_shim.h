@@ -10,6 +10,12 @@ const char *shim_map_interface_version(const char *version);
 void *shim_legacy_user_interface(const char *version);
 void *shim_raw_generic_interface(ISteamClient *self, HSteamUser hSteamUser, HSteamPipe hSteamPipe, const char *pchVersion);
 
+/* STEAMAPI_ARM64_LOG=1 logs to stderr; any other value is a file to append to. */
+void shim_log(const char *fmt, ...);
+
+/* Workaround for Wine bug 60453 (fpcr_fix.cpp) */
+void fpcr_fix(void);
+
 /* Debug builds (-DSHIM_TRACE_CALLS) log every flat call. */
 #ifdef SHIM_TRACE_CALLS
 void shim_trace(const char *name);

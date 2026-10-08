@@ -217,7 +217,8 @@ step_steam_api() {
     $CXX -c "${flags[@]}" "$o/flat_generated.cpp" -o "$o/flat_generated.o"
     $CXX -c "${flags[@]}" "$src/steam_api_core.cpp" -o "$o/steam_api_core.o"
     $CXX -c "${flags[@]}" "$src/steam_api_helpers.cpp" -o "$o/steam_api_helpers.o"
-    $CXX -shared -Os -s -static -o "$OUT/steam_api64.dll" "$o"/flat_generated.o "$o"/steam_api_core.o "$o"/steam_api_helpers.o
+    $CXX -c "${flags[@]}" "$src/fpcr_fix.cpp" -o "$o/fpcr_fix.o"
+    $CXX -shared -Os -s -static -o "$OUT/steam_api64.dll" "$o"/flat_generated.o "$o"/steam_api_core.o "$o"/steam_api_helpers.o "$o"/fpcr_fix.o
     local size
     size=$(stat -c %s "$OUT/steam_api64.dll")
     [ "$size" -lt $((350 * 1024)) ] || { echo "steam_api64.dll is $size bytes; must stay below 350 KB (BSIPA anti-piracy heuristic)" >&2; exit 1; }
