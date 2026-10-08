@@ -2,6 +2,17 @@
 
 All notable changes to bs-arm64. Each release is built for one Proton build (see its release notes).
 
+## [0.3.1] – 2026-10-08
+
+### Fixed
+- Wrong environment objects on the Steam Frame, e.g. in the Grid ("Cube") environment
+  ([#8](https://github.com/DaVarga/bs-arm64/issues/8)). Wine on ARM64 writes the floating-point status
+  into the control register after each window callback
+  ([bug 60453](https://bugs.winehq.org/show_bug.cgi?id=60453)). On the Frame's CPU that makes
+  denormal floats read as zero, and Unity's `Mathf.Approximately(0, 0)` returns false.
+  `steam_api64.dll` now patches that instruction in the game's copy of Wine's `ntdll.so` when it
+  loads; `STEAMAPI_ARM64_FPCR_FIX=0` turns it off. Proton's files are not changed.
+
 ## [0.3.0] – 2026-10-04
 
 ### Added
@@ -167,6 +178,7 @@ Steam, OpenXR on SteamVR and BSIPA mods.
   Harmony can patch.
 - Release packaging and GitHub workflow; the installer refuses other Proton builds.
 
+[0.3.1]: https://github.com/DaVarga/bs-arm64/releases/tag/v0.3.1
 [0.3.0]: https://github.com/DaVarga/bs-arm64/releases/tag/v0.3.0
 [0.2.2]: https://github.com/DaVarga/bs-arm64/releases/tag/v0.2.2
 [0.2.1]: https://github.com/DaVarga/bs-arm64/releases/tag/v0.2.1
