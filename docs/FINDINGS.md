@@ -182,7 +182,13 @@ Symbols for Unity's ARM64 Mono are on Unity's symbol server
 ## Open items
 
 - **Burst.** `lib_burst_generated.dll` is x64, and Burst jobs fall back to Mono. An ARM64 Burst library
-  would need Unity's Burst compiler run for the game's assemblies; not attempted.
+  would need Unity's Burst compiler run for the game's assemblies; not attempted, and probably not
+  worth it. The x64 library has 101 entry points. The only game jobs among them are the
+  four `LufsMetering` jobs behind Adaptive SFX (`Main.dll`) and two beatmap-editor jobs; the rest are
+  Unity's (URP, GPU-driven rendering, Collections), which the game's built-in render pipeline doesn't
+  run. A `perf` profile of the STARLIGHT replay (1.44.1, bench settings, 90 s, managed addresses
+  resolved through Mono) found no samples in any Burst job's managed fallback.
+  The job workers (24 % of the process's samples) spent all their time in native `UnityPlayer.dll`.
 - **MonoMod.** The Windows ARM64 default ABI is fixed in MonoMod.Core 1.3.4. BSIPA 4.3.7 still ships
   1.3.3, so the installer upgrades it to the unmodified upstream 1.3.4 DLL.
 - **SiraUtil XR restart vs. standby.** Why Unity doesn't recreate the eye textures when the headset

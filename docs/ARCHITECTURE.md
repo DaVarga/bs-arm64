@@ -120,6 +120,20 @@ exports all 1,089 symbols of the real DLL, plus 11 entry points of older SDKs (1
   - Flat functions that newer SDKs dropped (`ISteamUserStats_RequestCurrentStats`, the
     `ISteamAppList` methods) call lsteamclient's implementation of the old interface version, so Steam
     still answers them (`LEGACY` in `gen.py`).
+- **Wine bug 60453 workaround** ([`fpcr_fix.cpp`](../src/steam-api/fpcr_fix.cpp)). It has nothing
+  to do with Steam; it's here because this is the one DLL of ours every launch loads, with or without
+  mods. When it loads, it patches the instruction behind
+  [UPSTREAM #5](UPSTREAM.md#5-wine-user-callbacks-write-fpsr-into-fpcr-on-arm64) in this process's
+  copy of `ntdll.so`:
+  - It finds the code through PE ntdll's `__wine_syscall_dispatcher` pointer: the bad sequence
+    (`mrs x1, fpcr; mrs x2, fpsr; bfi x1, x2, #0, #32`) is in the 4 KB before it. It patches only if
+    there's exactly one match, so a fixed Wine is left alone.
+  - Wine doesn't manage the memory of `ntdll.so`, so `VirtualProtect` and `WriteProcessMemory` fail
+    on it. The DLL calls Linux `mprotect` directly (`svc #0`), writes `bfi x1, x2, #32, #32` and
+    restores the page's protection. The mapping is private: the file and other processes are untouched.
+  - It then clears FIZ/AH once on the loading thread, the game's main thread (Steam is initialised
+    there, a few hundred frames after start).
+  - `STEAMAPI_ARM64_FPCR_FIX=0` turns it off; `STEAMAPI_ARM64_LOG` shows whether it patched.
 - **ABI rule.** This DLL is compiled with the Itanium C++ ABI (mingw). It never makes a C++ virtual call.
   All calls into Steam objects go through typed function pointers taken from the MSVC-layout
   vtables.

@@ -9,6 +9,7 @@ reported.
 | 2 | Wine (msvcrt) | ARM64 `__CxxFrameHandler3` looks up the unadjusted return address → NULL deref on MSVC code | private Wine C++ runtime with the backported fix | fixed in Wine master: [6964eb2](https://github.com/wine-mirror/wine/commit/6964eb2b018a9029b561124269e7ceec5bde8086) ([bug 60399](https://bugs.winehq.org/show_bug.cgi?id=60399)); our pinned Proton predates the fix |
 | 3 | Proton (Wine win32u) | Device callback gets `vkGetDeviceProcAddr`, wineopenxr passes it on as `vkGetInstanceProcAddr` | none shipped (only hit in an experiment) | fixed in Proton experimental/bleeding-edge, not yet in 11.0 stable |
 | 4 | Valve (SteamVR) | `fdm_injection` hangs `vkCreateDevice` when only its implicit OpenXR half is active (games started outside Steam); its Vulkan manifest can't load | set the layer's variables as Steam does, or `DISABLE_VULKAN_FDM_INJECTION_LAYER=1` | [reported](https://github.com/ValveSoftware/SteamVR-for-Linux/issues/972) |
+| 5 | Wine (ntdll, ARM64) | `call_user_mode_callback` saves FPSR over FPCR, so a returning user callback writes the FPSR flags into FPCR: FIZ/AH turn on with FEAT_AFP | `steam_api64.dll` patches the instruction in memory when it loads (0.3.1) | [bug 60453](https://bugs.winehq.org/show_bug.cgi?id=60453); in Wine master and Proton 11.0 |
 
 ## 1. MonoMod: no default ABI on Windows ARM64
 
@@ -117,3 +118,48 @@ Also, `/usr/share/vulkan/explicit_layer.d/VkLayer_VALVE_fdm_injection.json` name
 - **Reported:** [ValveSoftware/SteamVR-for-Linux#972](https://github.com/ValveSoftware/SteamVR-for-Linux/issues/972).
 - **Until then:** launch with the two variables for foveated rendering, or with
   `DISABLE_VULKAN_FDM_INJECTION_LAYER=1` without it. `bs-arm64.sh launch` does that (`--foveation`).
+
+## 5. Wine: user callbacks write FPSR into FPCR on ARM64
+
+`call_user_mode_callback` (`dlls/ntdll/unix/signal_arm64.c`) saves the floating-point state before it
+calls a user-mode callback (window procedures, hooks):
+
+```asm
+mrs x1, fpcr
+mrs x2, fpsr
+bfi x1, x2, #0, #32        /* should be #32, #32 */
+stp x1, x2, [x29, #0xb0]
+```
+
+`user_mode_callback_return` restores it with `msr fpcr, x5; lsr x5, x5, #32; msr fpsr, x5`, so it
+expects FPCR in the low half and FPSR in the high half. The `bfi` puts FPSR into the low half instead.
+Each callback return therefore writes the FPSR exception flags into FPCR and clears FPSR. FPSR's
+IOC (bit 0) and DZC (bit 1) land on FPCR.FIZ and FPCR.AH. On CPUs without FEAT_AFP these bits are
+RES0 and nothing happens. The Steam Frame has FEAT_AFP, so the game's main thread runs with
+FIZ|AH a few frames after start (`+seh` showed `fpcr=00000003 fpsr=00000013`). With FIZ, denormal
+inputs read as zero.
+
+**Effect in Beat Saber** ([#8](https://github.com/DaVarga/bs-arm64/issues/8)): Unity computes
+`MathfInternal.IsFlushToZeroEnabled` once, in a static constructor, while denormals still work. So
+`Mathf.Epsilon` stays the smallest denormal, `Epsilon * 8f` reads as 0 later, and
+`Mathf.Approximately(0, 0)` returns false. `SwitchGameObjectEffectTarget` (fx events) uses
+`Approximately(value, 0)` to choose between two objects, so the Grid environment shows the wrong
+ones: large rounded cubes and hex blocks where x64 shows light bars (Badly, One Saber Normal,
+40 s on).
+
+- **Verified on the Frame (2026-10-06):** with that one instruction changed to
+  `bfi x1, x2, #32, #32` (`0xb3407c41` → `0xb3607c41` at offset `0x3fcdc` of Proton 11.0 (ARM64)'s
+  `ntdll.so`), denormals keep working on the main thread, `Approximately(0, 0)` is true, and the
+  environment matches the x64 build.
+- **Reported:** [bug 60453](https://bugs.winehq.org/show_bug.cgi?id=60453) (2026-10-06), with two
+  minimal test cases and the one-line patch. Present in Wine master (`eba8937`) and in Proton
+  11.0. Both test cases fail on master and pass with the patch, on a Cortex-A76 and on the
+  Frame.
+- **Until then:** `steam_api64.dll` patches that instruction in the game process's copy of
+  `ntdll.so` when it loads, and clears FIZ/AH on the main thread
+  ([`fpcr_fix.cpp`](../src/steam-api/fpcr_fix.cpp), see
+  [ARCHITECTURE](ARCHITECTURE.md#steam-steam_api64dll--lsteamclient_a64dll)). On the Frame
+  (2026-10-08, 5 launches each, Badly from 40 s) the environment was wrong 5/5 times with
+  `STEAMAPI_ARM64_FPCR_FIX=0` and right 5/5 times with the patch. FIZ is still on during the first
+  ~200 frames, until Steam is initialised. Once Proton ships the fix, the sequence isn't found and
+  the workaround does nothing; remove it then.
