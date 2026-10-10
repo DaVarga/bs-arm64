@@ -96,6 +96,19 @@ class InstallerRuntimeTests(unittest.TestCase):
         self.run_installer('uninstall')
         self.assert_uninstalled()
 
+    def test_every_tested_proton_build_is_accepted(self):
+        for tag in PINS['PROTON_TAGS'].strip('"').split():
+            self.write(self.proton / 'version', f'0 {tag}-arm64\n'.encode())
+            self.run_installer('install')
+            self.assertEqual((self.prefix / 'pfx/drive_c/bs-arm64/proton-version').read_text().strip(),
+                             f'{tag}-arm64')
+
+    def test_untested_proton_build_fails_before_changing_instance(self):
+        self.write(self.proton / 'version', b'0 GE-Proton11-7\n')
+        self.assertIn('Proton is GE-Proton11-7', self.run_installer('install', success=False))
+        self.assertFalse((self.instance / '.bs-arm64').exists())
+        self.assert_prefix_unchanged()
+
     def test_other_unity_engine_fails_before_changing_instance(self):
         self.write(self.instance / 'Beat Saber_Data/globalgamemanagers', b'\0' + b'2022.3.33f1\0 1.40.8_7400')
         self.assertIn('Unity 2022.3.33f1', self.run_installer('install', success=False))

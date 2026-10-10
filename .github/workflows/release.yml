@@ -70,5 +70,5 @@ jobs:
         run: |
           source versions.env
           gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/*.tar.gz.sha256 dist/bs-arm64-manifest.json \
-            --verify-tag --title "$GITHUB_REF_NAME ($PROTON_TAG, Beat Saber ${BS_VERSIONS%% *}–${BS_VERSIONS##* })" \
+            --verify-tag --title "$GITHUB_REF_NAME (${PROTON_TAGS// /, }, Beat Saber ${BS_VERSIONS%% *}–${BS_VERSIONS##* })" \
             --notes-file dist/RELEASE_NOTES.md

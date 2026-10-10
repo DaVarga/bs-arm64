@@ -19,8 +19,9 @@ The installer is `install/bs-arm64.sh`. It runs on the device (Steam Frame, Stea
   the DLLs next to it), or `out/` from `build.sh` (copy the whole repo to the device, or pass
   `--artifacts DIR`)
 
-`install` checks that `<Proton dir>/version` matches the Proton build the DLLs were made for
-(`PROTON_TAG` in `versions.env`) and stops otherwise.
+`install` checks that `<Proton dir>/version` is one of the Proton versions the release was tested with
+(`PROTON_TAGS` in `versions.env`) and stops otherwise. After Steam updates Proton, run `install`
+again.
 
 Work on a **copy** of an instance. BSManager can duplicate instances.
 
@@ -77,7 +78,7 @@ In the prefix:
 | `pfx/drive_c/bs-arm64/aarch64-windows/{lsteamclient_a64,wineopenxr_a64}.dll` | Wine builtins, found through `WINEDLLPATH` |
 | `pfx/drive_c/bs-arm64/aarch64-unix/*.so` | symlinks to Proton's `lsteamclient.so` / `wineopenxr.so` |
 | `pfx/drive_c/bs-arm64/wineopenxr_a64.json` | OpenXR runtime manifest for ARM64 processes |
-| `pfx/drive_c/bs-arm64/proton-version` | Proton build these must match |
+| `pfx/drive_c/bs-arm64/proton-version` | Proton version these must match |
 | `HKLM\Software\Khronos\OpenXR\1` `ActiveRuntimeARM64` | read by our `openxr_loader.dll` before `ActiveRuntime` |
 
 x64 games in the same prefix are unaffected: they ignore the ARM64 value and directory.

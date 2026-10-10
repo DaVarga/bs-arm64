@@ -55,30 +55,48 @@ is used. The runtime build uses `--enable-archs=aarch64` on either Linux host ar
 
 ## Releases
 
+A release is **one build** of the DLLs, built against one Proton version (`PROTON_TAG`), and works
+with one or more Proton versions (`PROTON_TAGS`). Only versions tested on the Steam Frame go into
+`PROTON_TAGS`.
+
 `./build.sh package` checks that every DLL is pure ARM64 (and `steam_api64.dll` below 350 KB), then
-writes `dist/bs-arm64-<version>-<PROTON_TAG>.tar.gz` plus its `.sha256`, and
-`dist/bs-arm64-manifest.json`. The tarball holds the DLLs,
+writes `dist/bs-arm64-<version>-<PROTON_TAG>.tar.gz` plus its `.sha256` and
+`dist/bs-arm64-manifest.json`, whose `protonVersions` points every tested Proton version at that
+tarball. `PROTON_TAGS` must include `PROTON_TAG`. BSManager 1.6.0-frame.5 and older don't read
+`protonVersions`; they only find a tarball named after the user's own Proton version. The tarball holds the DLLs,
 `bs-arm64.sh` with its helpers and `versions.env`, the docs, `SHA256SUMS`, the upstream licenses in
 `licenses/`, and `SOURCES.md`, which names the exact upstream sources (the LGPL source offer). The
 version is `$BS_ARM64_VERSION`, or else `git describe --tags`.
 
-The manifest lists what the release was tested with, from `versions.env`: the Unity engines
-(`UNITY_VERSION`), the Beat Saber versions (`BS_VERSIONS`) and the BSIPA versions (`BSIPA_VERSIONS`).
-BSManager offers the ARM64 tab only for those Beat Saber versions, and mod support only for those
-BSIPA versions:
+The manifest lists what the release was tested with, from `versions.env`: the Proton versions
+(`PROTON_TAGS`), the Unity engines (`UNITY_VERSION`), the Beat Saber versions (`BS_VERSIONS`) and the
+BSIPA versions (`BSIPA_VERSIONS`). BSManager offers the ARM64 tab only for those Beat Saber versions,
+and mod support only for those BSIPA versions:
 
 ```json
 {
-  "version": "v0.3.0",
+  "version": "v0.3.2",
   "proton": "proton-11.0-2c",
+  "protonVersions": {
+    "proton-11.0-2c": {"artifact": "bs-arm64-v0.3.2-proton-11.0-2c.tar.gz"},
+    "proton-11.0-2e": {"artifact": "bs-arm64-v0.3.2-proton-11.0-2c.tar.gz"}
+  },
   "unityVersions": ["6000.0.40f1"],
   "bsVersions": ["1.40.9", "1.40.10", "…", "1.44.1"],
   "bsipaVersions": ["4.3.7"]
 }
 ```
 
-A version tested after the release can be added without a new build: edit the manifest and replace
-it on the release with `gh release upload <tag> bs-arm64-manifest.json --clobber`.
+| Field | Meaning |
+|---|---|
+| `proton` | The Proton version the DLLs are built against (`PROTON_TAG`). Kept for older BSManager versions. |
+| `protonVersions` | The Proton versions the release works with (`PROTON_TAGS`, each tested on the Steam Frame), and for each the release asset to install (`artifact`). Read by BSManager after 1.6.0-frame.5 to pick the tarball. |
+| `unityVersions`, `bsVersions`, `bsipaVersions` | The tested Unity engines, Beat Saber and BSIPA versions. |
+
+A Beat Saber or BSIPA version tested after the release can be added without a new build: edit the
+manifest and replace it on the release with `gh release upload <tag> bs-arm64-manifest.json --clobber`.
+A Proton version can't: the installer checks `PROTON_TAGS` in the tarball's own `versions.env`, so it
+needs a new release.
 
 [.github/workflows/release.yml](../.github/workflows/release.yml) does this on GitHub:
 
@@ -98,19 +116,26 @@ variable `BS_ARM64_RUNNER` to `ubuntu-24.04`. `deps/` is cached, keyed on `versi
 The workflow also runs the installer upgrade/uninstall tests in
 `tools/test_installer_runtime.py` and checks that the tarball contains all three private runtime DLLs.
 
-Each release is tied to one Proton build. When Valve updates Proton ARM64, update the pins (below) and
-tag a new release.
+When Valve updates Proton ARM64, follow the steps below and tag a new release.
 
 ## Keeping in sync with Proton
 
-`lsteamclient_a64.dll` and `wineopenxr_a64.dll` must be built from the **same Proton version** that
-runs the game. Their unix halves are Proton's own `.so` files, and the parameter structs and call
-numbers change between versions. When Steam updates "Proton 11.0 (ARM64)":
+`lsteamclient_a64.dll` and `wineopenxr_a64.dll` must match the Proton version that runs the game.
+Their unix halves are Proton's own `.so` files, and the parameter structs and call numbers can change
+between versions. When Steam updates "Proton 11.0 (ARM64)":
 
-1. Read the new version from `<Proton dir>/version` (for example `proton-11.0-2c-arm64`).
-2. Set `PROTON_TAG` to the matching tag of github.com/ValveSoftware/Proton, and set `WINE_COMMIT` and
-   `DXVK_COMMIT` to that tag's submodule commits (`git -C Proton submodule status`).
-3. `rm -rf deps obj out && ./build.sh`, then reinstall.
+1. Read the new version from `<Proton dir>/version` (for example `proton-11.0-2e-arm64`).
+2. Compare its `lsteamclient/` and `wineopenxr/` and its `wine` and `dxvk` submodules with
+   `PROTON_TAG`'s (`git diff proton-11.0-2c proton-11.0-2e -- lsteamclient wineopenxr wine dxvk` in a
+   Proton checkout).
+3. If `lsteamclient/` and `wineopenxr/` are unchanged, the build can stay. Test it with the new
+   Proton on the device, then add the tag to `PROTON_TAGS`.
+4. Otherwise set `PROTON_TAG` to the new tag, `WINE_COMMIT` and `DXVK_COMMIT` to its submodule
+   commits (`git -C Proton submodule status`), `PROTON_TAGS` to the new tag alone,
+   `rm -rf deps obj out && ./build.sh`, test, and reinstall.
+
+`PROTON_TAG` is the Proton version the DLLs are built against; `PROTON_TAGS` lists the Proton
+versions the release works with. Only versions tested on the Steam Frame go into `PROTON_TAGS`.
 
 ## Checks
 
