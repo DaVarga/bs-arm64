@@ -338,6 +338,8 @@ step_package() {
     local stage=$dist/$name repo=${BS_ARM64_REPO_URL:-https://github.com/DaVarga/bs-arm64}
     local bs_range="${BS_VERSIONS%% *}–${BS_VERSIONS##* }"
     log "package $name"
+    # The manifest points every tested Proton version at the tarball named after PROTON_TAG
+    case " $PROTON_TAGS " in *" $PROTON_TAG "*) ;; *) echo "PROTON_TAGS must include PROTON_TAG ($PROTON_TAG)" >&2; exit 1 ;; esac
     local f
     for f in "${RELEASE_DLLS[@]}"; do
         [ -f "$OUT/$f" ] || { echo "$OUT/$f missing; run the full build first" >&2; exit 1; }
@@ -416,13 +418,19 @@ EOF
     tar -C "$dist" --owner=0 --group=0 --numeric-owner --sort=name -czf "$dist/$name.tar.gz" "$name"
     (cd "$dist" && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
 
-    # Read by BSManager: which Beat Saber versions this release was tested with
-    python3 - "$version" "$PROTON_TAG" "$UNITY_VERSION" "$BS_VERSIONS" "$BSIPA_VERSIONS" > "$dist/bs-arm64-manifest.json" <<'PY'
+    # Read by BSManager: which Proton and Beat Saber versions this release was tested with
+    python3 - "$version" "$PROTON_TAG" "$PROTON_TAGS" "$UNITY_VERSION" "$BS_VERSIONS" "$BSIPA_VERSIONS" > "$dist/bs-arm64-manifest.json" <<'PY'
 import json, sys
-version, proton, unity, bs, bsipa = sys.argv[1:]
-print(json.dumps({"version": version, "proton": proton, "unityVersions": unity.split(),
-                  "bsVersions": bs.split(), "bsipaVersions": bsipa.split()}, indent=2))
+version, proton, proton_versions, unity, bs, bsipa = sys.argv[1:]
+# One build: every Proton version it works with installs the tarball named after PROTON_TAG
+artifacts = {tag: {"artifact": f"bs-arm64-{version}-{proton}.tar.gz"} for tag in proton_versions.split()}
+print(json.dumps({"version": version, "proton": proton, "protonVersions": artifacts,
+                  "unityVersions": unity.split(), "bsVersions": bs.split(), "bsipaVersions": bsipa.split()},
+                 indent=2))
 PY
+    local proton_list
+    proton_list=$(printf '`%s`, ' $PROTON_TAGS)
+    proton_list=${proton_list%, }
 
     cat > "$dist/RELEASE_NOTES.md" <<EOF
 Runs Beat Saber **$bs_range** as a native Windows ARM64 program under ARM64 Proton (tested on the
@@ -432,19 +440,20 @@ Steam Frame) instead of emulating the x64 build with FEX.
 
 | | |
 |---|---|
-| Proton | **$PROTON_TAG** only: Steam's "Proton 11.0 (ARM64)" at that build |
+| Proton | Steam's "Proton 11.0 (ARM64)", tested versions only: $proton_list |
 | Beat Saber | **$bs_range** (Unity $UNITY_VERSION), e.g. a BSManager instance; the installer refuses other Unity engines |
 | VR | SteamVR (OpenXR) |
 | Mods | 1.41.1 and later: BSIPA 4.3.7 with Harmony mods (tested: SiraUtil, BSML, SongCore, BS Utils, CustomSabersLite, HitScoreVisualizer). BeatMods has no mods for 1.40.9–1.40.13. |
 
-Check your Proton build before installing; it must print \`$PROTON_TAG\` (with an \`-arm64\` suffix):
+Check your Proton version before installing; it must print one of these (with an \`-arm64\` suffix):
 
 \`\`\`sh
 cut -d' ' -f2 ~/.steam/steam/steamapps/common/"Proton 11.0 (ARM64)"/version
 \`\`\`
 
-The installer refuses any other Proton build, because the Steam and OpenXR libraries talk directly to
-that Proton's own libraries. When Steam updates Proton, wait for a matching release.
+The installer refuses any other Proton version, because the Steam and OpenXR libraries talk directly to
+that Proton's own libraries. When Steam updates Proton to a version not listed here, wait for a
+release that lists it. GE-Proton isn't supported.
 
 ## Install
 

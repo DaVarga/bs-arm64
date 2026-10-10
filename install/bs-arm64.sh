@@ -74,6 +74,15 @@ tool() { # locate a helper script (next to us in a release, in tools/ or src/ in
 }
 
 proton_version() { cut -d' ' -f2 "$PROTON/version" 2>/dev/null || echo unknown; }
+# Proton's version file says e.g. "proton-11.0-2c-arm64" for the tag "proton-11.0-2c"
+proton_tested() {
+    local v tag
+    v=$(proton_version)
+    for tag in ${PROTON_TAGS:-$PROTON_TAG}; do
+        case $v in "$tag" | "$tag"-*) return 0 ;; esac
+    done
+    return 1
+}
 
 # --- fetch -------------------------------------------------------------------
 
@@ -271,11 +280,8 @@ cmd_install() {
     version=$(game_version "$INSTANCE")
     engine=$(engine_version "$INSTANCE")
     [ "$engine" = "$UNITY_VERSION" ] || die "instance is Unity ${engine:-unknown} (Beat Saber $version); this runtime is built for Unity $UNITY_VERSION"
-    # lsteamclient_a64/wineopenxr_a64 talk to this Proton's unix libraries: the build must match.
-    case $(proton_version) in
-        "$PROTON_TAG" | "$PROTON_TAG"-*) ;;
-        *) die "Proton is $(proton_version), but these DLLs were built for $PROTON_TAG; rebuild them (docs/BUILD.md)" ;;
-    esac
+    # lsteamclient_a64/wineopenxr_a64 talk to this Proton's unix libraries: only tested builds.
+    proton_tested || die "Proton is $(proton_version), but this release was tested with ${PROTON_TAGS:-$PROTON_TAG} only; wait for a release that supports it"
     for f in lsteamclient_a64.dll wineopenxr_a64.dll steam_api64.dll openxr_loader.dll dxgi.dll d3d11.dll MonoPosixHelper.dll \
              LIV_Bridge.dll ucrtbs64.dll vcruntime140.dll msvcp140.dll; do
         [ -f "$ARTIFACTS/$f" ] || die "$ARTIFACTS/$f missing; run build.sh first (or pass --artifacts)"
@@ -365,8 +371,8 @@ cmd_launch() {
     INSTANCE=$(cd "$INSTANCE" && pwd)
     local rt=$PREFIX/pfx/$RUNTIME_DIR built_for
     built_for=$(cat "$rt/proton-version" 2>/dev/null || echo unknown)
-    # lsteamclient/wineopenxr Windows halves must match Proton's unix halves exactly.
-    [ "$built_for" = "$(proton_version)" ] || die "Proton changed ($built_for -> $(proton_version)); rebuild and reinstall"
+    # The prefix runtime links to the unix halves of the Proton it was installed with.
+    [ "$built_for" = "$(proton_version)" ] || die "Proton changed ($built_for -> $(proton_version)); run install again"
     # Installed with --no-mods: BSIPA's winhttp.dll (if any) is still the x64 one.
     [ "$(cat "$INSTANCE/$STATE_DIR/mods" 2>/dev/null || echo 1)" = 1 ] || MODS=0
     # Mod loader: BSIPA's Doorstop (winhttp.dll) in the game dir, else Wine's builtin.

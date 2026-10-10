@@ -1,6 +1,20 @@
 # Changelog
 
-All notable changes to bs-arm64. Each release is built for one Proton build (see its release notes).
+All notable changes to bs-arm64. Each release lists the Proton versions it was tested with (see its
+release notes).
+
+## [Unreleased]
+
+### Changed
+- Works with Proton 11.0-2e as well as 11.0-2c ([#11](https://github.com/DaVarga/bs-arm64/issues/11)).
+  2e changes nothing the DLLs depend on, so this is the same build, tested with 2e on the Steam
+  Frame. `PROTON_TAGS` in `versions.env` lists the tested Proton versions and the installer accepts
+  only those. On 2e, BSManager needs the version that reads `protonVersions` (after 1.6.0-frame.5)
+  to install it. After Steam updates Proton, run install again (or reinstall in BSManager's ARM64
+  tab).
+- `bs-arm64-manifest.json` has a new `protonVersions` field: the Proton versions the release works
+  with, and for each the release asset to install. `proton` stays for older BSManager versions and
+  still names the Proton version the DLLs are built against.
 
 ## [0.3.1] – 2026-10-08
 
