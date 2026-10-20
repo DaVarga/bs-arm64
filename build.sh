@@ -12,7 +12,6 @@
 #   MonoMod.Core.dll      unmodified upstream 1.3.4 (Windows ARM64 ABI, Harmony)
 #   LIV_Bridge.dll        stub for the LIV SDK's x64-only native bridge (reports: no LIV capture)
 #   ucrtbs64.dll, vcruntime140.dll, msvcp140.dll  private Wine C++ runtime with the upstream EH fix
-#   patch_unityopenxr.py  copied for install/
 #
 # Usage: ./build.sh [step...]   steps: toolchain fetch wine-tools lsteamclient wineopenxr
 #                                      steam-api openxr-loader dxvk monoposixhelper doorstop monomod
@@ -330,7 +329,7 @@ RELEASE_DLLS=(lsteamclient_a64.dll wineopenxr_a64.dll steam_api64.dll openxr_loa
               MonoPosixHelper.dll winhttp.dll MonoMod.Core.dll LIV_Bridge.dll
               ucrtbs64.dll vcruntime140.dll msvcp140.dll)
 
-# Release tarball in dist/: the DLLs, the installer and its helpers, docs, the upstream
+# Release tarball in dist/: the DLLs, the installer, docs, the upstream
 # licenses, and SOURCES.md (where the corresponding source is, for the LGPL parts).
 step_package() {
     local version=${BS_ARM64_VERSION:-$(git -C "$ROOT" describe --tags --always --dirty 2>/dev/null || echo dev)}
@@ -365,8 +364,11 @@ PY
     rm -rf "${stage:?}" "$dist/$name.tar.gz" "$dist/$name.tar.gz.sha256"
     mkdir -p "$stage/licenses"
     for f in "${RELEASE_DLLS[@]}"; do cp "$OUT/$f" "$stage/"; done
-    cp "$ROOT/install/bs-arm64.sh" "$ROOT/versions.env" "$ROOT/src/unityopenxr/patch_unityopenxr.py" \
-       "$ROOT/tools/unity_pkg_extract.py" "$ROOT/LICENSE" "$ROOT/README.md" "$stage/"
+    cp "$ROOT/install/bs-arm64.sh" "$ROOT/versions.env" "$ROOT/LICENSE" "$ROOT/README.md" "$stage/"
+    # The installer (install/bs_arm64, standard library only); VERSION is what `--version` prints
+    cp -r "$ROOT/install/bs_arm64" "$stage/"
+    rm -rf "$stage/bs_arm64/__pycache__"
+    echo "$version" > "$stage/VERSION"
     cp -r "$ROOT/docs" "$stage/"
 
     local l=$stage/licenses
@@ -460,8 +462,7 @@ release that lists it. GE-Proton isn't supported.
 Easiest: the **ARM64 tab** of the Steam Frame BSManager fork
 (https://github.com/DaVarga/bs-manager) installs this release for you. By hand:
 
-Work on a **copy** of your instance (BSManager can duplicate instances). The Wine prefix
-must exist: launch any game with it once.
+Work on a **copy** of your instance (BSManager can duplicate instances).
 
 \`\`\`sh
 tar xf $name.tar.gz && cd $name
@@ -469,6 +470,8 @@ tar xf $name.tar.gz && cd $name
 ./bs-arm64.sh launch  ~/.local/share/BSManager/BSInstances/<copy>
 ./bs-arm64.sh uninstall ~/.local/share/BSManager/BSInstances/<copy> # restores the x64 files
 \`\`\`
+
+For a bug report, paste the output of \`./bs-arm64.sh doctor <instance>\`.
 
 Without mod support: \`install --no-mods\` (engine only), or \`launch --no-mods\` to start one
 time without mods. If you (re)install BSIPA afterwards, run \`install\` again. See \`docs/INSTALL.md\` for every file it
@@ -501,6 +504,5 @@ for s in "${STEPS[@]}"; do
     "step_${s//-/_}"
 done
 [ "${STEPS[*]}" = package ] && exit 0
-cp "$ROOT/src/unityopenxr/patch_unityopenxr.py" "$ROOT/tools/unity_pkg_extract.py" "$OUT/"
 log "done"
 ls -la "$OUT"

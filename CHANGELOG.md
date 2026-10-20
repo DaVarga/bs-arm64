@@ -3,6 +3,36 @@
 All notable changes to bs-arm64. Each release lists the Proton versions it was tested with (see its
 release notes).
 
+## [Unreleased]
+
+### Changed
+- The installer is now a Python package (`install/bs_arm64`, standard library only); `bs-arm64.sh`
+  only starts it. Same commands, options, output and install record, so released BSManager versions
+  keep working with it.
+- `launch` starts the game under Steam's `reaper`, as Steam does. Without it, Steam treats the game as
+  a non-VR app: the Frame's non-VR frame limiter capped it (e.g. 40 FPS at 120 Hz) and its desktop
+  window showed in the VR overlay ([#14](https://github.com/DaVarga/bs-arm64/issues/14)).
+  Launchers that start Proton themselves, like released BSManager versions, don't get this fix.
+- `launch` follows Beat Saber's Foveated Rendering switch in Steam; `--foveation` / `--no-foveation`
+  override it. It runs in the foreground now (arguments after `--` go to the game); `--detach` starts
+  it in the background as before.
+- With foveated rendering off, `launch` no longer sets `DISABLE_VULKAN_FDM_INJECTION_LAYER=1`. The
+  startup hang it worked around came from Valve's layer being listed twice in `XDG_DATA_DIRS` (e.g. by
+  an AppImage), not from the layer itself; without the variables the layer stays inactive.
+- `install` creates the Wine prefix with Proton if it doesn't exist, so the game no longer has to be
+  launched once before installing.
+- A failed download names the URL and where it was redirected
+  ([#18](https://github.com/DaVarga/bs-arm64/issues/18)).
+
+### Removed
+- Cleanup of files from old releases on reinstall: the eye-tracking layer (0.2.0 and older), Microsoft's
+  `vcruntime140_1.dll` and `lsteamclient_a64.dll` in the game folder. An instance installed with one of
+  those releases keeps these unused files; uninstall still restores the original files.
+
+### Added
+- `doctor [<instance>]`: versions and state, for a bug report.
+- `status <instance>` and `--json` on every command, for launchers (docs/INSTALL.md, "For launchers").
+
 ## [0.3.2] – 2026-10-10
 
 ### Changed

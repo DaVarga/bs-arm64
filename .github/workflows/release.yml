@@ -47,11 +47,12 @@ jobs:
       - name: Check installer and package contents
         run: |
           bash -n build.sh install/bs-arm64.sh
-          python3 tools/test_installer_runtime.py
+          python3 -m unittest discover -s tests
           for package in dist/*.tar.gz; do
             tar tzf "$package" | grep '/ucrtbs64.dll$'
             tar tzf "$package" | grep '/vcruntime140.dll$'
             tar tzf "$package" | grep '/msvcp140.dll$'
+            tar tzf "$package" | grep '/bs_arm64/cli.py$'
           done
 
       - uses: actions/upload-artifact@v4
