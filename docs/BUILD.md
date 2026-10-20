@@ -64,7 +64,7 @@ writes `dist/bs-arm64-<version>-<PROTON_TAG>.tar.gz` plus its `.sha256` and
 `dist/bs-arm64-manifest.json`, whose `protonVersions` points every tested Proton version at that
 tarball. `PROTON_TAGS` must include `PROTON_TAG`. BSManager 1.6.0-frame.5 and older don't read
 `protonVersions`; they only find a tarball named after the user's own Proton version. The tarball holds the DLLs,
-`bs-arm64.sh` with its helpers and `versions.env`, the docs, `SHA256SUMS`, the upstream licenses in
+the installer (`bs-arm64.sh`, `bs_arm64/`, `VERSION`) with `versions.env`, the docs, `SHA256SUMS`, the upstream licenses in
 `licenses/`, and `SOURCES.md`, which names the exact upstream sources (the LGPL source offer). The
 version is `$BS_ARM64_VERSION`, or else `git describe --tags`.
 
@@ -113,10 +113,22 @@ It runs on `ubuntu-24.04-arm`. If Arm runners aren't available for the repositor
 variable `BS_ARM64_RUNNER` to `ubuntu-24.04`. `deps/` is cached, keyed on `versions.env`,
 `patches/` and `build.sh`.
 
-The workflow also runs the installer upgrade/uninstall tests in
-`tools/test_installer_runtime.py` and checks that the tarball contains all three private runtime DLLs.
+The workflow also runs the installer tests (`python3 -m unittest discover -s tests`) and checks that
+the tarball contains all three private runtime DLLs and the installer.
 
 When Valve updates Proton ARM64, follow the steps below and tag a new release.
+
+## The installer
+
+`install/bs-arm64.sh` starts the Python package `install/bs_arm64`; its `__init__.py` lists the
+modules, one job each. Keep it to the Python standard library: it runs on the device as is.
+
+```sh
+python3 -m unittest discover -s tests     # all tests; no Wine, Proton or downloads needed
+```
+
+`tests/fixture.py` builds a fake device (HOME with Steam, a stub Proton, a prefix, an instance);
+`tests/test_contract.py` pins down what BSManager relies on (docs/INSTALL.md, "For launchers").
 
 ## Keeping in sync with Proton
 

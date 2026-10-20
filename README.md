@@ -7,113 +7,42 @@
 
 Run Beat Saber as a **native Windows ARM64** program on ARM64 Linux under Proton, tested on the
 **Steam Frame**, instead of emulating the x64 build with FEX. Every game version on Unity 6000.0.40f1
-works, which means 1.40.9 through 1.44.1 (see [Game versions](#game-versions)); the benchmarks below
-are from 1.44.1.
+works, which means 1.40.9 through 1.44.1 (see [Game versions](#game-versions)).
 
 The game's engine and C# code both run natively. Only Proton's small `steam.exe` launcher stays x64.
 
 ## Results on the Steam Frame
 
-Beat Saber 1.44.1, the same replay (STARLIGHT, Expert+, 1,050 notes) five times on each build,
-alternating:
+Beat Saber 1.44.1, the same replay (STARLIGHT, Expert+) five times on each build, 2160 × 2160 per eye
+at 120 Hz, with reduced graphics settings (anti-aliasing 2×, Bloom, mirror, smoke and Screen
+Distortion off):
 
 | | Native ARM64 | x64 via FEX |
 |---|---|---|
-| Frames rendered (same 184 s song) | ~22,150 (~120 fps) | ~19,130 (~104 fps) |
-| Mean frame time | 8.34 ms | 9.66 ms |
-| 99th percentile frame time | 10.4 ms | 18.5 ms |
-| Frames over 9.5 ms | 4.5 % | 35.1 % |
+| Frame rate | ~120 fps | ~104 fps |
 | Reprojected frames (SteamVR) | 1.0 % | 30.9 % |
-| Dropped frames (SteamVR) | 2 | 159–176 |
-| App CPU time per frame (SteamVR) | 4.24 ms | 8.39 ms |
-| App GPU time per frame (SteamVR) | 3.26 ms | 8.24 ms |
-| CPU temperature, mean (max) | 65.5 °C (74.9) | 75.6 °C (83.6) |
-| GPU temperature, mean (max) | 56.8 °C (59.5) | 71.0 °C (77.5) |
-| Fast core (X4) clock | 2294 MHz | 2797 MHz |
-| GPU clock | 901 MHz | 897 MHz |
-| System power during the song | 14.4 W | 19.2 W |
-| GPU power | 2.0 W | 3.4 W |
-| CPU power | 3.4 W | 4.2 W |
+| App CPU time per frame | 4.2 ms | 8.4 ms |
+| System power | 14.4 W | 19.2 W |
 
-Both builds ran with the same configuration:
+With the game's default graphics settings the GPU is the limit on both builds (~39 fps each), so lower
+those first.
 
-- **2160 × 2160 per eye at 120 Hz** (SteamVR's per-app resolution and refresh rate for Beat Saber).
-- **Foveated rendering on**: SteamVR's own (`FDM_DEBUG=enable`, Steam's default strength), see
-  [Foveated rendering](#foveated-rendering-optional).
-- The same `settings.ini`, changed from the game's defaults: anti-aliasing 2× (default 4×), Bloom Post
-  Process off (`quality.main_fx`), mirror off, smoke off, Screen Distortion off
-  (`quality.screen_displacement_fx`), shockwave particles 0.
-- Proton 11.0-2c (ARM64), the same Wine prefix, the fan at a fixed speed.
-- The game with only BSIPA and a test plugin that plays the replay through the game's own systems:
-  the sabers and the view follow the recorded hands and head, and the recorded cuts go through the
-  game's cut handling (debris, effects, sounds, score). Every run cut all 1,050 notes.
+## Tips
 
-Frame times are per frame from the game; reprojected and dropped frames and app CPU/GPU time come
-from SteamVR's per-session compositor stats; temperatures, clocks and power are sampled every ~2.5 s
-while the song plays. Between runs the spread was under 0.1 ms for CPU and GPU time.
-
-The native build halves the CPU time per frame. The GPU time is lower too, partly because the ARM64 build
-brings its own DXVK build, which doesn't write the multisampled image back after resolving it (see
-[CHANGELOG](CHANGELOG.md) 0.1.6).
-
-With the game's default graphics settings (anti-aliasing 4×, Bloom Post Process, mirror, smoke and
-Screen Distortion on, shockwave particles 1), everything else the same, the GPU is the limit on both
-builds and the native build barely helps (two runs each):
-
-| Default graphics settings | Native ARM64 | x64 via FEX |
-|---|---|---|
-| Frames rendered (same 184 s song) | ~7,240 (~39 fps) | ~7,200 (~39 fps) |
-| Mean frame time | 25.5 ms | 25.7 ms |
-| Reprojected frames (SteamVR) | 81 % | 89 % |
-| App GPU time per frame (SteamVR) | 18.6 ms | 20.3 ms |
-
-At 2160 × 2160 and 120 Hz, lower these settings first; which of them costs the most wasn't measured
-separately.
-
-A CPU micro-benchmark run inside the game's Mono runtime shows the CPU gain on its own: native code is
-2–3× faster than FEX-translated x64 on everything except `Vector3` math (see
-[docs/FINDINGS.md](docs/FINDINGS.md#benchmark)).
-
-## Tip: turn off Adaptive SFX
-
-Turn off **Adaptive SFX**: Solo → song selection → **Player Settings** tab in the panel next to the song
-list (not the main menu's Options). It measures the song's loudness on the audio thread with thousands
-of `Math.Pow` calls per second. On x64 that's cheap; on ARM64, Mono's `pow` is
-slow and the measurement takes most of the audio thread. With it off, frame times were steadier in a
-replay benchmark: 30 % fewer frames over 9.5 ms at 120 Hz. The trade-off: hit sounds no longer adapt
-to the song's loudness. See [docs/FINDINGS.md](docs/FINDINGS.md#frame-pacing).
-
-## Tip: turn off Screen Distortion
-
-In the game's graphics settings, turn off **Screen Distortion**. For the effect, the game copies the
-whole scene in the middle of every frame and keeps drawing on it, which costs a lot of GPU time on the
-Frame's tiled GPU. In v0.1.6 it also caused frozen ghost images of the menu and sabers.
+- Turn off **Adaptive SFX** (Solo → song selection → **Player Settings** tab). On ARM64 its loudness
+  measurement takes most of the audio thread; with it off, 30 % fewer slow frames. Hit sounds then no
+  longer adapt to the song's loudness.
+- Turn off **Screen Distortion** in the graphics settings. It costs a lot of GPU time on the Frame.
 
 ## Foveated rendering (optional)
 
-With foveated rendering the Frame's GPU renders the area you look at in full resolution and the edges
-at lower resolution. bs-arm64 uses SteamVR's own foveated rendering (Valve's `fdm_injection` layer),
-the same one Steam turns on for the x64 game with **Properties** → **Performance** → **Foveated
-Rendering**. With SteamVR's eye tracking the sharp area follows your eyes.
+bs-arm64 uses SteamVR's own foveated rendering, the same one Steam turns on for the x64 game. Turn on
+Beat Saber's **Properties** → **Performance** → **Foveated Rendering** in Steam; `bs-arm64.sh launch`
+follows it (`--foveation` / `--no-foveation` override it). With the Frame's eye tracking, the sharp
+area follows your eyes. Steam's default strength is mild; `FDM_DEBUG=enable,hi` saves more GPU time.
 
-By hand, start the game with `bs-arm64.sh launch --foveation`. That sets what Steam sets:
-`FDM_DEBUG=enable` and `VK_INSTANCE_LAYERS=VK_LAYER_VALVE_rpo:VK_LAYER_VALVE_fdm_injection`. Steam's
-default is mild; `FDM_DEBUG=enable,med` or `FDM_DEBUG=enable,hi` saves more and is easier to notice.
-The BSManager fork (v1.6.0-frame.4 or later) sets them from Steam's Foveated Rendering switch.
-
-| STARLIGHT replay, 1776 px per eye, no MSAA, 120 Hz | GPU / frame | CPU / frame | System power |
-|---|---|---|---|
-| off | 3.83 ms | 5.28 ms | 17.7 W |
-| default | 2.92 ms | 4.70 ms | 15.7 W |
-| `hi` | 2.64 ms | 4.62 ms | 15.2 W |
-
-One run each, headset off (no eye movement). bs-arm64 0.2.0's own foveated rendering got 3.16 ms GPU
-and 5.37 ms CPU in the same test, so it was removed.
-
-AssetBundleLoadingTools' **Enable Multi-Pass Rendering** (Mod Settings, or `EnableMultiPassRendering`
-in `UserData/AssetBundleLoadingTools.json`) makes the game draw everything twice, once per eye. It
-also kept 0.2.0's foveated rendering off; Valve's layer hasn't been tried with it. Check it when you
-copy `UserData` over from a Windows install.
+AssetBundleLoadingTools' **Enable Multi-Pass Rendering** turns foveated rendering off. Check it when
+you copy `UserData` over from a Windows install.
 
 ## What works
 
@@ -122,110 +51,53 @@ copy `UserData` over from a Windows install.
 | Menu, maps (official), audio, visuals | ✅ |
 | Steam (login, ownership, platform init, online services) | ✅ |
 | OpenXR on SteamVR, controllers, recenter | ✅ |
-| Burst-compiled code | ⚠️ x64 `lib_burst_generated.dll` can't load; Unity falls back to managed code |
-| LIV mixed-reality capture | ❌ not available (a stub `LIV_Bridge.dll` reports "no capture") |
-| Mods: BSIPA 4.3.7 + Harmony (tested: SiraUtil, BSML, SongCore, BS Utils) | ✅ with the ARM64 Doorstop + upstream MonoMod.Core 1.3.4, on 1.41.1 and later |
-| Game versions | ✅ 1.40.9 through 1.44.1 (Unity 6000.0.40f1); other Unity engines aren't supported |
+| Mods: BSIPA 4.3.7 + Harmony (tested: SiraUtil, BSML, SongCore, BS Utils) | ✅ on 1.41.1 and later |
+| Burst-compiled code | ⚠️ runs as managed code (no ARM64 Burst library) |
+| LIV mixed-reality capture | ❌ not available |
 
 ## Game versions
 
-The native runtime depends on the game's Unity engine, not on its version: the installer reads the
-engine from the instance's `globalgamemanagers` and refuses any other than 6000.0.40f1. Tested on the
-Frame, to the main menu with Steam and VR:
+The native runtime depends on the game's Unity engine, not on its version. Tested on the Frame, to the
+main menu with Steam and VR:
 
-| Beat Saber | Steamworks SDK | Without mods | With mods |
-|---|---|---|---|
-| 1.40.8 and older | | ❌ Unity 2022.3.33f1, the installer refuses it | |
-| 1.40.9 – 1.40.13 | 1.57 | ✅ Steam (ownership, DLC, leaderboards), VR | BeatMods has no mods for these versions |
-| 1.41.1 | 1.61 | ✅ | ✅ |
-| 1.42.0 – 1.42.3 | 1.61 | ✅ | ✅ |
-| 1.43.0, 1.44.0, 1.44.1 | 1.61 | ✅ | ✅ |
-
-`steam_api64.dll` implements the SDK 1.61 flat API and also serves games built against older SDKs:
-it exports their entry points (e.g. `SteamAPI_Init`) and hands out its own interface versions when a
-game asks for older ones ([ARCHITECTURE.md](docs/ARCHITECTURE.md#steam-steam_api64dll--lsteamclient_a64dll)).
+| Beat Saber | Without mods | With mods |
+|---|---|---|
+| 1.40.8 and older | ❌ Unity 2022.3.33f1, the installer refuses it | |
+| 1.40.9 – 1.40.13 | ✅ | BeatMods has no mods for these versions |
+| 1.41.1 – 1.44.1 | ✅ | ✅ |
 
 ## How it works
 
-The ARM64 player comes from the same Unity version the game was built with (6000.0.40f1). Every native
-piece around it that only existed as x64 or ARM64EC has an ARM64 replacement. Details are in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-
-| Piece | Source |
-|---|---|
-| Unity player, `UnityPlayer.dll`, Mono runtime | Unity's official Windows ARM64 player (downloaded) |
-| `steam_api64.dll` | **new**: Steamworks SDK 1.61 flat API, plus the entry points of older SDKs ([src/steam-api](src/steam-api)) |
-| `lsteamclient_a64.dll` | Proton's lsteamclient, Windows half, rebuilt for pure aarch64 |
-| `wineopenxr_a64.dll` | Proton's wineopenxr, Windows half, rebuilt for pure aarch64 |
-| `openxr_loader.dll` | Khronos loader 1.1.45, patched ([patches/openxr-loader](patches/openxr-loader)) |
-| `UnityOpenXR.dll` | Unity's UWP ARM64 build, imports patched for desktop ([src/unityopenxr](src/unityopenxr)) |
-| `dxgi.dll`, `d3d11.dll` | DXVK at Proton's commit, built for aarch64 ([patches/dxvk](patches/dxvk)) |
-| `MonoPosixHelper.dll` | Mono's zlib helper + zlib; Unity doesn't ship one for ARM64 |
-| `ucrtbs64.dll`, `vcruntime140.dll`, `msvcp140.dll` | private Wine ARM64 C++ runtime, built from the matching Proton source with the upstream exception-handling fix ([patches/wine](patches/wine)) |
-| `winhttp.dll` (mods) | BSIPA's Doorstop injector, rebuilt for ARM64 ([src/doorstop](src/doorstop)) |
-| `Libs/MonoMod.Core.dll` (mods) | unmodified upstream MonoMod.Core 1.3.4, which includes Windows ARM64 support |
+The ARM64 player comes from the same Unity version the game was built with. Every native piece around
+it that only existed as x64 or ARM64EC (Steam API, OpenXR, DXVK, the mod loader, ...) has an ARM64
+replacement, built from source here. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Quick start
 
-### With BSManager (easiest)
+With a launcher: the [BSManager fork](https://github.com/DaVarga/bs-manager)'s **ARM64 tab** installs
+the release matching your Proton version (see the note at the top).
 
-The Steam Frame fork of BSManager, [DaVarga/bs-manager](https://github.com/DaVarga/bs-manager)
-(ARM64 AppImage on its releases page), fixes BSManager for ARM64 Proton and adds an **ARM64 tab**
-next to Mods for supported versions. That tab downloads the release matching your Proton build and
-installs, reinstalls or removes it, with or without mod support. It also re-applies the ARM64 mod
-loader fixes after BSIPA is installed, and sets up the launch environment.
-
-Follow its [Steam Frame guide](https://github.com/DaVarga/bs-manager/blob/bs-arm64/docs/steam-frame.md).
-On a fresh Frame, three things trip people up:
-- Install **Proton 11.0 (ARM64)** (and **Steam Linux Runtime 4.0 for arm64**) from the Steam library
-  (Tools) first; BSManager asks for the Proton folder.
-- Add `DISABLE_VULKAN_FDM_INJECTION_LAYER=1 %command%` as launch command in BSManager. Without it the
-  game hangs at startup: Valve's foveated rendering layer is half on outside Steam. For foveated
-  rendering in the x64 game, use
-  `FDM_DEBUG=enable VK_INSTANCE_LAYERS=VK_LAYER_VALVE_rpo:VK_LAYER_VALVE_fdm_injection %command%`
-  instead.
-- Launch the version once before clicking Install in the ARM64 tab. That creates BSManager's Wine prefix.
-  If Install already failed with `Wine prefix … does not exist`, the version is left half changed;
-  launch another version once, then click Install again.
-
-### By hand
-
-On the Steam Frame, with BSManager, an instance of 1.40.9 through 1.44.1 (Unity 6000.0.40f1), and
-"Proton 11.0 (ARM64)":
-
-Download the release tarball that matches your Proton version (`<Proton dir>/version`) from the
-[releases page](https://github.com/DaVarga/bs-arm64/releases), then on the Frame:
+By hand, on the device, with **Proton 11.0 (ARM64)** installed from Steam (Library → Tools): download
+the release tarball for your Proton version from the
+[releases page](https://github.com/DaVarga/bs-arm64/releases), then:
 
 ```sh
 tar xf bs-arm64-*.tar.gz && cd bs-arm64-*/
-./bs-arm64.sh install ~/.local/share/BSManager/BSInstances/1.44.1   # downloads the Unity player etc.
-./bs-arm64.sh launch  ~/.local/share/BSManager/BSInstances/1.44.1
+./bs-arm64.sh install <instance>   # also downloads Unity's ARM64 player
+./bs-arm64.sh launch  <instance>
+./bs-arm64.sh uninstall <instance> # restores the x64 files
 ```
 
-Or build it yourself:
-
-```sh
-# 1. build the open-source parts (any Linux host, x86_64 or aarch64); see docs/BUILD.md
-./build.sh
-# 2. copy the repo (with out/) to the Frame, then there:
-install/bs-arm64.sh install ~/.local/share/BSManager/BSInstances/1.44.1
-install/bs-arm64.sh launch  ~/.local/share/BSManager/BSInstances/1.44.1
-# undo:
-install/bs-arm64.sh uninstall ~/.local/share/BSManager/BSInstances/1.44.1
-```
-
-See [docs/INSTALL.md](docs/INSTALL.md) for every file that gets touched.
-
-> **Status:** verified end to end on the Frame. A clean `build.sh` output was installed with
-> `install/bs-arm64.sh` into a fresh copy of a BSManager 1.44.1 instance: Steam, VR and maps all work.
-> The other versions in [Game versions](#game-versions) were tested to the main menu with Steam and VR.
+`<instance>` is the folder of a Beat Saber install (e.g. a BSManager instance); work on a copy. For a
+bug report, paste the output of `./bs-arm64.sh doctor <instance>`. To build it yourself, see
+[docs/BUILD.md](docs/BUILD.md).
 
 ## Docs
 
+- [docs/INSTALL.md](docs/INSTALL.md): the installer, what it changes, launching, troubleshooting
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): every component, and why it's needed
-- [docs/BUILD.md](docs/BUILD.md): build requirements and steps
-- [docs/INSTALL.md](docs/INSTALL.md): what the installer changes, launching, uninstalling
-- [docs/FINDINGS.md](docs/FINDINGS.md): the debugging path, pitfalls, and the benchmark
+- [docs/BUILD.md](docs/BUILD.md): building and releasing
+- [docs/UPSTREAM.md](docs/UPSTREAM.md): bugs in other projects we work around
 - [docs/LEGAL.md](docs/LEGAL.md): licenses, and what may or may not be redistributed
 
 ## License

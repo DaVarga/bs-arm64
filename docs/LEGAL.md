@@ -10,7 +10,7 @@ source except what the build downloads from upstream.
 | Path | Origin | License |
 |---|---|---|
 | `src/steam-api/*` | original; generates code from Steamworks SDK headers **at build time**, taken from the Proton checkout | MIT |
-| `src/unityopenxr/patch_unityopenxr.py`, `tools/*`, `install/*`, `build.sh` | original | MIT |
+| `tools/*`, `install/*`, `tests/*`, `build.sh` | original | MIT |
 | `src/monoposixhelper/glib.h`, `config.h` | original shim | MIT |
 | `patches/openxr-loader/*` | changes to the Khronos OpenXR-SDK | Apache-2.0 (upstream) |
 | `patches/dxvk/*` | changes to DXVK | zlib (upstream) |
