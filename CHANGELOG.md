@@ -3,7 +3,7 @@
 All notable changes to bs-arm64. Each release lists the Proton versions it was tested with (see its
 release notes).
 
-## [Unreleased]
+## [0.4.1] – 2026-10-29
 
 ### Added
 - `fetch` and `install` accept `--unity-src PATH_OR_URL` and `--openxr-src PATH_OR_URL` to use local
