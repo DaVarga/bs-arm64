@@ -44,6 +44,31 @@ Options: `--artifacts DIR`, `--cache DIR` (default `~/.cache/bs-arm64`), `--pref
 
 `fetch` streams the ~500 MB Unity package once and keeps about 40 MB.
 
+If Unity's download URL does not work on your connection, pass `--unity-src PATH_OR_URL` to
+`fetch` or `install` to read a local package or stream a custom HTTP(S) URL:
+
+```sh
+install/bs-arm64.sh fetch --unity-src ~/Downloads/UnitySetup-Windows-Mono-Support-for-Editor-6000.0.40f1.pkg
+install/bs-arm64.sh fetch --unity-src 'https://example.com/UnitySetup-Windows-Mono-Support-for-Editor-6000.0.40f1.pkg'
+install/bs-arm64.sh install <instance> --unity-src /path/to/unity.pkg
+```
+
+Use the **Windows Mono support package for Unity 6000.0.40f1**, matching `UNITY_VERSION` in
+`versions.env`. Keep the `.pkg` packed; the installer extracts only the required ARM64 player files
+into the usual cache. Existing cached files are reused even when `--unity-src` is supplied.
+Use `--openxr-src PATH_OR_URL` to supply the separate Unity OpenXR `.tgz` package, matching
+`UNITY_OPENXR_VERSION` in `versions.env` (currently 1.14.3). The installer extracts and patches its
+ARM64 DLL as usual. A custom URL also works, e.g.
+`--openxr-src https://example.com/com.unity.xr.openxr-1.14.3.tgz`. Each option defaults to Unity's download URL when omitted, and each package
+is fetched only if its extracted files are missing from the cache.
+
+With both packages supplied locally, `fetch` and `install` need no downloads:
+
+```sh
+install/bs-arm64.sh fetch --unity-src /path/to/unity.pkg --openxr-src /path/to/com.unity.xr.openxr-1.14.3.tgz
+install/bs-arm64.sh install <instance> --unity-src /path/to/unity.pkg --openxr-src /path/to/com.unity.xr.openxr-1.14.3.tgz
+```
+
 ## What `install` changes
 
 In the instance (the originals go to `<instance>/.bs-arm64/backup/`, and added files are listed in

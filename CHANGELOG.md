@@ -3,6 +3,14 @@
 All notable changes to bs-arm64. Each release lists the Proton versions it was tested with (see its
 release notes).
 
+## [Unreleased]
+
+### Added
+- `fetch` and `install` accept `--unity-src PATH_OR_URL` and `--openxr-src PATH_OR_URL` to use local
+  Unity Windows Mono support and OpenXR packages or custom HTTP(S) URLs when Unity's default
+  downloads are inaccessible ([#18](https://github.com/DaVarga/bs-arm64/issues/18)). Providing both
+  packages locally also allows installation without downloads.
+
 ## [0.4.0] – 2026-10-20
 
 ### Changed

@@ -21,13 +21,18 @@ class Setup:
     prefix: Prefix
     proton: Proton
     steam_root: Path
+    unity_src: str | None = None   # local .pkg path or custom HTTP(S) URL
+    openxr_src: str | None = None  # local .tgz path or custom HTTP(S) URL
 
     @classmethod
     def create(cls, artifacts: Path | None = None, cache: Path | None = None,
-               prefix: Path | None = None, proton: Path | None = None) -> "Setup":
+               prefix: Path | None = None, proton: Path | None = None,
+               unity_src: str | None = None, openxr_src: str | None = None) -> "Setup":
         return cls(pins=Pins.load(),
                    artifacts=artifacts or pins.default_artifacts(),
                    cache=cache or DEFAULT_CACHE,
                    prefix=Prefix(prefix or DEFAULT_PREFIX),
                    proton=Proton(proton or DEFAULT_PROTON),
-                   steam_root=steam.DEFAULT_ROOT)
+                   steam_root=steam.DEFAULT_ROOT,
+                   unity_src=unity_src,
+                   openxr_src=openxr_src)

@@ -62,6 +62,12 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--detach", action="store_true",
                    help="launch: return at once, game output in /tmp/bs-arm64.log")
     p.add_argument("--debug", action="store_true", help="launch: Wine, DXVK, OpenXR and Steam API logging")
+    p.add_argument("--unity-src", metavar="PATH_OR_URL",
+                   help="fetch/install: use a local Unity Windows Mono support .pkg or custom HTTP(S) URL; "
+                        "existing cached files are reused")
+    p.add_argument("--openxr-src", metavar="PATH_OR_URL",
+                   help="fetch/install: use a local Unity OpenXR .tgz or custom HTTP(S) URL; "
+                        "existing cached files are reused")
     for name in ("artifacts", "cache", "prefix", "proton"):
         p.add_argument(f"--{name}", type=Path, metavar="DIR")
     return p
@@ -88,9 +94,9 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def run(args: argparse.Namespace, game_args: list[str]) -> None:
-    setup = Setup.create(args.artifacts, args.cache, args.prefix, args.proton)
+    setup = Setup.create(args.artifacts, args.cache, args.prefix, args.proton, args.unity_src, args.openxr_src)
     if args.command == "fetch":
-        fetch(setup.cache, setup.pins)
+        fetch(setup.cache, setup.pins, setup.unity_src, setup.openxr_src)
         return
     if args.command == "doctor":
         sections = doctor(_instance(args) if args.instance else None, setup)
