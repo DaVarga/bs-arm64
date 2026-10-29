@@ -41,7 +41,7 @@ def install(instance: Instance, setup: Setup, mods: bool) -> None:
         out.log(f"creating the Wine prefix in {prefix.compatdata}")
         proton.create_prefix(prefix.compatdata, setup.steam_root)
     prefix.wait_idle()
-    fetched = fetch(setup.cache, pins)
+    fetched = fetch(setup.cache, pins, setup.unity_src, setup.openxr_src)
 
     out.log(f"installing into {instance.path}")
     a = setup.artifacts
