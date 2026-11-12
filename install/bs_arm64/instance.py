@@ -6,6 +6,7 @@ The record lives in <instance>/.bs-arm64/ (BSManager reads installed, mods and p
   installed        Beat Saber version at install time; present = installed
   mods             1 = installed with the BSIPA fixes, 0 = without mods
   proton-version   Proton build the instance was installed with
+  release          bs-arm64 release that installed it (the tarball's VERSION; "dev" from a checkout)
 """
 import re
 import shutil

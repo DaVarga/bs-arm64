@@ -190,5 +190,5 @@ A launcher calls the installer instead of duplicating its logic:
   keys are only added, never renamed or removed, without raising it.
 - `launch <instance> [-- <game arguments>]` runs in the foreground, so the launcher sees when the game
   exits. User launch options that wrap `%command%` wrap this command.
-- The files in `<instance>/.bs-arm64/` (`installed`, `mods`, `proton-version`) and
+- The files in `<instance>/.bs-arm64/` (`installed`, `mods`, `proton-version`, `release`) and
   `<prefix>/pfx/drive_c/bs-arm64/proton-version` stay as they are, for launchers that read them.

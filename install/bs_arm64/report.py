@@ -30,6 +30,7 @@ def status(instance: Instance, setup: Setup) -> dict:
         "installed": installed,
         "mods": installed and instance.mods_enabled(),
         "installedProton": instance.read_state("proton-version"),
+        "installedRelease": instance.read_state("release"),
         "protonBuild": setup.proton.build,
         "protonArm64": setup.proton.is_arm64(),
         "protonTested": setup.proton.is_tested(setup.pins.proton_tags),
@@ -84,6 +85,7 @@ def doctor(instance: Instance | None, setup: Setup) -> dict[str, dict[str, str]]
             "bs-arm64 installed": _yes(instance.is_installed()),
             "mods": _yes(instance.mods_enabled()) if instance.is_installed() else "-",
             "installed with Proton": instance.read_state("proton-version") or "-",
+            "installed by release": instance.read_state("release") or "-",
         }
     return sections
 
