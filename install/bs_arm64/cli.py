@@ -9,20 +9,22 @@ from . import pins
 from .config import DEFAULT_CACHE, DEFAULT_PREFIX, DEFAULT_PROTON, Setup
 from .errors import Code, Error
 from .fetch import fetch
-from .install import install, uninstall
+from .install import install, supported_engine, uninstall
 from .instance import Instance
 from .launch import launch
 from .output import out
+from .pins import Engine
 from .report import doctor, status
 
 DESCRIPTION = """\
-Turn a Beat Saber install on Unity 6000.0.40f1 (1.40.9-1.44.1) into a native ARM64 build and run it
-on ARM64 Proton (e.g. the Steam Frame)."""
+Turn a Beat Saber install (1.40.9-1.45.3, Unity 6000.0.40f1 or 6000.3.19f1) into a native ARM64 build
+and run it on ARM64 Proton (e.g. the Steam Frame)."""
 
 EPILOG = f"""\
 commands:
-  fetch                 download the parts we may not redistribute (Unity's ARM64 player and
-                        OpenXR plugin) from Unity's servers; install does this too
+  fetch [<instance>]    download the parts we may not redistribute (Unity's ARM64 player and
+                        OpenXR plugin) from Unity's servers, for the instance's Unity engine
+                        (without an instance: for every supported engine); install does this too
   install <instance>    back up the x64 files and install the ARM64 ones; set up the Wine prefix
                         (created with Proton if it doesn't exist yet). With BSIPA installed, also
                         its ARM64 fixes, unless --no-mods. Run again after (re)installing BSIPA.
@@ -96,7 +98,8 @@ def main(argv: list[str] | None = None) -> int:
 def run(args: argparse.Namespace, game_args: list[str]) -> None:
     setup = Setup.create(args.artifacts, args.cache, args.prefix, args.proton, args.unity_src, args.openxr_src)
     if args.command == "fetch":
-        fetch(setup.cache, setup.pins, setup.unity_src, setup.openxr_src)
+        for engine in _engines_to_fetch(args, setup):
+            fetch(setup.cache, engine, setup.unity_src, setup.openxr_src)
         return
     if args.command == "doctor":
         sections = doctor(_instance(args) if args.instance else None, setup)
@@ -116,6 +119,17 @@ def run(args: argparse.Namespace, game_args: list[str]) -> None:
                detach=args.detach, game_args=game_args)
     elif args.command == "status":
         out.result(status(instance, setup))
+
+
+def _engines_to_fetch(args: argparse.Namespace, setup: Setup) -> tuple[Engine, ...]:
+    """The instance's engine, or every supported one. A supplied package is one engine's."""
+    if args.instance:
+        return (supported_engine(_instance(args), setup.pins),)
+    if len(setup.pins.engines) > 1 and (setup.unity_src or setup.openxr_src):
+        raise Error(Code.NOT_AN_INSTANCE,
+                    "usage: fetch <Beat Saber instance dir> --unity-src/--openxr-src (a package is for one "
+                    f"Unity engine, the instance says which; supported: {setup.pins.engine_versions()})")
+    return setup.pins.engines
 
 
 def _instance(args: argparse.Namespace) -> Instance:

@@ -3,7 +3,7 @@ must fail before the instance is changed, and prefix creation."""
 import shutil
 import unittest
 
-from fixture import PINS, PROTON_TAGS, Fixture
+from fixture import ENGINES, PINS, PROTON_TAGS, Fixture
 
 
 class InstallTests(Fixture):
@@ -36,6 +36,32 @@ class InstallTests(Fixture):
         self.assertIn("Unity 2022.3.33f1", self.run_installer("install", success=False))
         self.assertFalse((self.instance / ".bs-arm64").exists())
         self.assert_prefix_unchanged()
+
+    def test_each_supported_engine_gets_its_own_player_and_openxr_plugin(self):
+        builds = {"6000.0.40f1": "1.44.1_20239", "6000.3.19f1": "1.45.2_28848"}
+        self.assertEqual(set(ENGINES), set(builds))
+        for version, engine in ENGINES.items():
+            with self.subTest(engine=version):
+                self.set_game(version, builds[version])
+                self.run_installer("install")
+                player = self.cache / f"unity-{version}/Variations/win_arm64_player_nondevelopment_mono"
+                openxr = self.cache / f'unity-openxr-{engine["OPENXR_VERSION"]}/UnityOpenXR.dll'
+                self.assertEqual((self.instance / "Beat Saber.exe").read_bytes(),
+                                 (player / "WindowsPlayer.exe").read_bytes())
+                self.assertEqual((self.instance / "UnityPlayer.dll").read_bytes(),
+                                 (player / "UnityPlayer.dll").read_bytes())
+                self.assertEqual((self.instance / "Beat Saber_Data/Plugins/ARM64/UnityOpenXR.dll").read_bytes(),
+                                 openxr.read_bytes())
+                self.assertEqual((self.instance / ".bs-arm64/installed").read_text().strip(),
+                                 builds[version].split("_")[0])
+                self.run_installer("uninstall")
+                self.assert_uninstalled()
+
+    def test_other_unity_engine_error_names_the_supported_ones(self):
+        self.set_game("2022.3.33f1", "1.40.8_7400")
+        output = self.run_installer("install", success=False)
+        for version in ENGINES:
+            self.assertIn(version, output)
 
     def test_reinstall_after_an_installed_file_was_removed(self):
         self.run_installer("install")

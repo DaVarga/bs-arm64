@@ -44,10 +44,16 @@ def read_env_file(path: Path) -> dict[str, str]:
 
 
 @dataclass(frozen=True)
+class Engine:
+    """A Unity engine the release supports, and what install downloads for it."""
+    version: str          # as in the instance's globalgamemanagers, e.g. "6000.0.40f1"
+    changeset: str        # part of the Unity player's download URL
+    openxr_version: str   # com.unity.xr.openxr version whose ARM64 (UWP) plugin is used
+
+
+@dataclass(frozen=True)
 class Pins:
-    unity_version: str
-    unity_changeset: str
-    unity_openxr_version: str
+    engines: tuple[Engine, ...]
     proton_tags: tuple[str, ...]   # Proton versions this release was tested with
     monomod_core_version: str
     monomod_core_match: str        # regex for the BSIPA MonoMod.Core builds we replace
@@ -59,10 +65,20 @@ class Pins:
             path = _REPO_DIR / "versions.env"
         env = read_env_file(path)
         return cls(
-            unity_version=env["UNITY_VERSION"],
-            unity_changeset=env["UNITY_CHANGESET"],
-            unity_openxr_version=env["UNITY_OPENXR_VERSION"],
+            engines=tuple(_engine(env, version) for version in env["UNITY_VERSIONS"].split()),
             proton_tags=tuple((env.get("PROTON_TAGS") or env["PROTON_TAG"]).split()),
             monomod_core_version=env["MONOMOD_CORE_VERSION"],
             monomod_core_match=env["MONOMOD_CORE_MATCH"],
         )
+
+    def engine(self, version: str | None) -> Engine | None:
+        """The pins for an instance's Unity engine; None if the release doesn't support it."""
+        return next((engine for engine in self.engines if engine.version == version), None)
+
+    def engine_versions(self) -> str:
+        return ", ".join(engine.version for engine in self.engines)
+
+
+def _engine(env: dict[str, str], version: str) -> Engine:
+    key = "UNITY_" + version.replace(".", "_")
+    return Engine(version, env[f"{key}_CHANGESET"], env[f"{key}_OPENXR_VERSION"])

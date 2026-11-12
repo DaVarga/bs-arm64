@@ -11,7 +11,7 @@ from pathlib import Path
 from . import openxr_patch, unity_pkg
 from .errors import Code, Error
 from .output import out
-from .pins import Pins
+from .pins import Engine
 
 PLAYER_VARIATION = "Variations/win_arm64_player_nondevelopment_mono"
 PLAYER_FILES = ("WindowsPlayer.exe", "UnityPlayer.dll", "UnityCrashHandler64.exe",
@@ -25,16 +25,16 @@ class Fetched:
     openxr: Path     # patched UnityOpenXR.dll
 
 
-def fetch(cache: Path, pins: Pins, unity_src: str | None = None,
+def fetch(cache: Path, engine: Engine, unity_src: str | None = None,
           openxr_src: str | None = None) -> Fetched:
-    """Fetch missing files; optionally read each package from a local path or HTTP(S) URL."""
+    """Fetch an engine's missing files; optionally read each package from a local path or HTTP(S) URL."""
     cache.mkdir(parents=True, exist_ok=True)
-    player = cache / f"unity-{pins.unity_version}"
+    player = cache / f"unity-{engine.version}"
     if not (player / PLAYER_VARIATION / "UnityPlayer.dll").is_file():
-        out.log(f"Unity {pins.unity_version} Windows ARM64 player (streams the ~500 MB package, keeps ~40 MB)")
+        out.log(f"Unity {engine.version} Windows ARM64 player (streams the ~500 MB package, keeps ~40 MB)")
         source = unity_src or (
-            f"https://download.unity3d.com/download_unity/{pins.unity_changeset}/MacEditorTargetInstaller/"
-            f"UnitySetup-Windows-Mono-Support-for-Editor-{pins.unity_version}.pkg")
+            f"https://download.unity3d.com/download_unity/{engine.changeset}/MacEditorTargetInstaller/"
+            f"UnitySetup-Windows-Mono-Support-for-Editor-{engine.version}.pkg")
         tmp = player.with_name(player.name + ".tmp")
         shutil.rmtree(tmp, ignore_errors=True)
         with _open_source(source) as response:
@@ -47,12 +47,12 @@ def fetch(cache: Path, pins: Pins, unity_src: str | None = None,
             raise Error(Code.DOWNLOAD_FAILED, f"{source} has no {', '.join(missing)}")
         tmp.rename(player)
 
-    openxr = cache / f"unity-openxr-{pins.unity_openxr_version}" / "UnityOpenXR.dll"
+    openxr = cache / f"unity-openxr-{engine.openxr_version}" / "UnityOpenXR.dll"
     if not openxr.is_file():
-        out.log(f"Unity OpenXR {pins.unity_openxr_version} ARM64 plugin")
+        out.log(f"Unity OpenXR {engine.openxr_version} ARM64 plugin")
         source = openxr_src or (
             "https://download.packages.unity.com/com.unity.xr.openxr/-/"
-            f"com.unity.xr.openxr-{pins.unity_openxr_version}.tgz")
+            f"com.unity.xr.openxr-{engine.openxr_version}.tgz")
         uwp_dll = None
         with _open_source(source) as response:
             try:

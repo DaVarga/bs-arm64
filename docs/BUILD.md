@@ -69,7 +69,7 @@ the installer (`bs-arm64.sh`, `bs_arm64/`, `VERSION`) with `versions.env`, the d
 version is `$BS_ARM64_VERSION`, or else `git describe --tags`.
 
 The manifest lists what the release was tested with, from `versions.env`: the Proton versions
-(`PROTON_TAGS`), the Unity engines (`UNITY_VERSION`), the Beat Saber versions (`BS_VERSIONS`) and the
+(`PROTON_TAGS`), the Unity engines (`UNITY_VERSIONS`), the Beat Saber versions (`BS_VERSIONS`) and the
 BSIPA versions (`BSIPA_VERSIONS`). BSManager offers the ARM64 tab only for those Beat Saber versions,
 and mod support only for those BSIPA versions:
 
