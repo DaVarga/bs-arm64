@@ -48,6 +48,7 @@ class OldBsManagerTests(ReleaseFixture):
         self.assertEqual((state / "mods").read_text().strip(), "1")
         build = f'{PINS["PROTON_TAG"]}-arm64'
         self.assertEqual((state / "proton-version").read_text().strip(), build)
+        self.assertEqual((state / "release").read_text().strip(), "v9.9.9")
         # BSManager's launch sets WINEDLLPATH to this dir and checks this file against Proton
         self.assertEqual((self.prefix / "pfx/drive_c/bs-arm64/proton-version").read_text().strip(), build)
 
@@ -96,11 +97,13 @@ class JsonTests(ReleaseFixture):
         self.assertEqual(before["gameVersion"], "1.44.1")
         self.assertTrue(before["engineSupported"])
         self.assertFalse(before["installed"])
+        self.assertIsNone(before["installedRelease"])
         self.assertFalse(before["ready"])
 
         self.json(*self.args("install", "--no-mods"))
         after = self.json(*self.args("status"))[-1]
         self.assertTrue(after["installed"])
+        self.assertEqual(after["installedRelease"], "v9.9.9")
         self.assertFalse(after["mods"])
         self.assertTrue(after["protonTested"])
         self.assertTrue(after["ready"])
@@ -123,6 +126,7 @@ class DoctorTests(ReleaseFixture):
         self.assertEqual(report["Proton"]["build"], f'{PINS["PROTON_TAG"]}-arm64')
         self.assertEqual(report["Instance"]["Beat Saber"], "1.44.1")
         self.assertEqual(report["Instance"]["bs-arm64 installed"], "yes")
+        self.assertEqual(report["Instance"]["installed by release"], "v9.9.9")
         self.assertEqual(report["Steam"]["reaper"], "found")
 
     def test_without_instance_and_without_steam(self):
