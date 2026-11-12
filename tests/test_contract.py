@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import unittest
 
-from fixture import ARTIFACTS, PINS, ROOT, Fixture
+from fixture import ARTIFACTS, ENGINES, PINS, ROOT, Fixture
 
 
 class ReleaseFixture(Fixture):
@@ -107,6 +107,18 @@ class JsonTests(ReleaseFixture):
 
         self.set_proton("proton-11.0-2e")  # Steam updated Proton: install must run again
         self.assertFalse(self.json(*self.args("status"))[-1]["ready"])
+
+    def test_status_engine_supported_for_every_engine_of_the_release(self):
+        for version in ENGINES:
+            self.set_game(version, "1.45.2_28848")
+            status = self.json(*self.args("status"))[-1]
+            self.assertEqual(status["engine"], version)
+            self.assertTrue(status["engineSupported"], version)
+        self.set_game("2022.3.33f1", "1.40.8_7400")
+        status = self.json(*self.args("status"))[-1]
+        self.assertFalse(status["engineSupported"])
+        lines = self.json(*self.args("install"), success=False)
+        self.assertEqual(lines[-1]["code"], "UNSUPPORTED_ENGINE")
 
     def test_launch_not_installed(self):
         lines = self.json(*self.args("launch"), success=False)

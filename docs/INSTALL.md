@@ -9,9 +9,10 @@ SteamOS) and needs only `python3`, which ships with SteamOS. It also needs:
 
 - an **instance**: the folder of a Beat Saber install, the one that contains `Beat Saber.exe` and
   `Beat Saber_Data/`, e.g. `~/.local/share/BSManager/BSInstances/1.44.1`. The commands below take it
-  as `<instance>`. It must be a game version on **Unity 6000.0.40f1** (1.40.9 through 1.44.1);
-  `install` reads the engine from `Beat Saber_Data/globalgamemanagers` and refuses other engines
-  before changing anything.
+  as `<instance>`. It must be a game version on **Unity 6000.0.40f1** (1.40.9 through 1.44.1) or
+  **Unity 6000.3.19f1** (1.45.1 through 1.45.3); `install` reads the engine from
+  `Beat Saber_Data/globalgamemanagers`, uses that engine's ARM64 player and OpenXR plugin, and
+  refuses other engines before changing anything.
 - **Proton 11.0 (ARM64)**, the exact version the DLLs were built for
 - a Wine prefix (`--prefix`, the folder Proton gets as `STEAM_COMPAT_DATA_PATH`). The default is
   `~/.local/share/BSManager/SharedContent/compatdata`. If it doesn't exist yet, `install` has Proton
@@ -31,7 +32,7 @@ Work on a **copy** of an instance, not on the one Steam updates.
 From a release, run `./bs-arm64.sh` in the unpacked folder instead of `install/bs-arm64.sh`.
 
 ```sh
-install/bs-arm64.sh fetch                 # download Unity player and UnityOpenXR (cached)
+install/bs-arm64.sh fetch    [<instance>] # download Unity player and UnityOpenXR (cached)
 install/bs-arm64.sh install   <instance>  # patch the instance and set up the prefix (runs fetch)
 install/bs-arm64.sh launch    <instance>  # start it; --detach to return at once, --debug for verbose logs
 install/bs-arm64.sh uninstall <instance>  # restore the x64 files
@@ -42,30 +43,35 @@ install/bs-arm64.sh doctor   [<instance>] # versions and state, for a bug report
 Options: `--artifacts DIR`, `--cache DIR` (default `~/.cache/bs-arm64`), `--prefix DIR`,
 `--proton DIR`, `--no-mods` (see [Without mods](#without-mods)), `--json`. `--help` lists them all.
 
-`fetch` streams the ~500 MB Unity package once and keeps about 40 MB.
+`fetch` streams the ~500 MB Unity package once and keeps about 40 MB. With an instance it fetches for
+that instance's Unity engine; without one, for every engine the release supports.
 
 If Unity's download URL does not work on your connection, pass `--unity-src PATH_OR_URL` to
 `fetch` or `install` to read a local package or stream a custom HTTP(S) URL:
 
 ```sh
-install/bs-arm64.sh fetch --unity-src ~/Downloads/UnitySetup-Windows-Mono-Support-for-Editor-6000.0.40f1.pkg
-install/bs-arm64.sh fetch --unity-src 'https://example.com/UnitySetup-Windows-Mono-Support-for-Editor-6000.0.40f1.pkg'
+install/bs-arm64.sh fetch <instance> --unity-src ~/Downloads/UnitySetup-Windows-Mono-Support-for-Editor-6000.0.40f1.pkg
+install/bs-arm64.sh fetch <instance> --unity-src 'https://example.com/UnitySetup-Windows-Mono-Support-for-Editor-6000.0.40f1.pkg'
 install/bs-arm64.sh install <instance> --unity-src /path/to/unity.pkg
 ```
 
-Use the **Windows Mono support package for Unity 6000.0.40f1**, matching `UNITY_VERSION` in
-`versions.env`. Keep the `.pkg` packed; the installer extracts only the required ARM64 player files
-into the usual cache. Existing cached files are reused even when `--unity-src` is supplied.
-Use `--openxr-src PATH_OR_URL` to supply the separate Unity OpenXR `.tgz` package, matching
-`UNITY_OPENXR_VERSION` in `versions.env` (currently 1.14.3). The installer extracts and patches its
-ARM64 DLL as usual. A custom URL also works, e.g.
+A package is for one Unity engine, so `fetch` needs the instance with these options: its engine says
+which package this is.
+
+Use the **Windows Mono support package for the instance's Unity engine** (6000.0.40f1 for Beat Saber
+1.40.9 through 1.44.1, 6000.3.19f1 for 1.45.1 through 1.45.3; `UNITY_VERSIONS` in `versions.env`). Keep
+the `.pkg` packed; the installer extracts only the required ARM64 player files into the usual cache.
+Existing cached files are reused even when `--unity-src` is supplied.
+Use `--openxr-src PATH_OR_URL` to supply the separate Unity OpenXR `.tgz` package, matching that
+engine's `UNITY_<engine>_OPENXR_VERSION` in `versions.env` (1.14.3 for 6000.0.40f1, 1.16.1 for
+6000.3.19f1). The installer extracts and patches its ARM64 DLL as usual. A custom URL also works, e.g.
 `--openxr-src https://example.com/com.unity.xr.openxr-1.14.3.tgz`. Each option defaults to Unity's download URL when omitted, and each package
 is fetched only if its extracted files are missing from the cache.
 
 With both packages supplied locally, `fetch` and `install` need no downloads:
 
 ```sh
-install/bs-arm64.sh fetch --unity-src /path/to/unity.pkg --openxr-src /path/to/com.unity.xr.openxr-1.14.3.tgz
+install/bs-arm64.sh fetch <instance> --unity-src /path/to/unity.pkg --openxr-src /path/to/com.unity.xr.openxr-1.14.3.tgz
 install/bs-arm64.sh install <instance> --unity-src /path/to/unity.pkg --openxr-src /path/to/com.unity.xr.openxr-1.14.3.tgz
 ```
 
@@ -156,7 +162,7 @@ SteamVR must be running, which it always is in the Frame's game mode. SteamVR re
 
 | Symptom | Cause |
 |---|---|
-| `instance is Unity 2022.3.33f1 (Beat Saber 1.40.8); this runtime is built for Unity 6000.0.40f1` | the game version runs on another Unity engine; it isn't supported |
+| `instance is Unity 2022.3.33f1 (Beat Saber 1.40.8); this release supports Unity 6000.0.40f1, 6000.3.19f1` | the game version runs on another Unity engine; it isn't supported |
 | `[Steam] Not being able to initialize the platform` | `steam_api64.dll` not in `Plugins/ARM64`, or `WINEDLLPATH` missing; run `launch --debug` and look for `steam_api64(arm64)` lines |
 | `DllNotFoundException: UnityOpenXR` | `Plugins/ARM64/UnityOpenXR.dll` missing, or msvcp140/vcruntime140 missing |
 | `xrCreateInstance: XR_ERROR_RUNTIME_UNAVAILABLE` | registry value or JSON missing; `launch --debug` shows the loader's messages as `debugstr` lines |

@@ -421,7 +421,7 @@ EOF
     (cd "$dist" && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
 
     # Read by BSManager: which Proton and Beat Saber versions this release was tested with
-    python3 - "$version" "$PROTON_TAG" "$PROTON_TAGS" "$UNITY_VERSION" "$BS_VERSIONS" "$BSIPA_VERSIONS" > "$dist/bs-arm64-manifest.json" <<'PY'
+    python3 - "$version" "$PROTON_TAG" "$PROTON_TAGS" "$UNITY_VERSIONS" "$BS_VERSIONS" "$BSIPA_VERSIONS" > "$dist/bs-arm64-manifest.json" <<'PY'
 import json, sys
 version, proton, proton_versions, unity, bs, bsipa = sys.argv[1:]
 # One build: every Proton version it works with installs the tarball named after PROTON_TAG
@@ -443,9 +443,9 @@ Steam Frame) instead of emulating the x64 build with FEX.
 | | |
 |---|---|
 | Proton | Steam's "Proton 11.0 (ARM64)", tested versions only: $proton_list |
-| Beat Saber | **$bs_range** (Unity $UNITY_VERSION), e.g. a BSManager instance; the installer refuses other Unity engines |
+| Beat Saber | **$bs_range** (Unity ${UNITY_VERSIONS// /, }), e.g. a BSManager instance; the installer refuses other Unity engines |
 | VR | SteamVR (OpenXR) |
-| Mods | 1.41.1 and later: BSIPA 4.3.7 with Harmony mods (tested: SiraUtil, BSML, SongCore, BS Utils, CustomSabersLite, HitScoreVisualizer). BeatMods has no mods for 1.40.9–1.40.13. |
+| Mods | 1.41.1–1.44.1: BSIPA 4.3.7 with Harmony mods (tested: SiraUtil, BSML, SongCore, BS Utils, CustomSabersLite, HitScoreVisualizer). BeatMods has no mods for 1.40.9–1.40.13, and none yet for 1.45.1–1.45.3. |
 
 Check your Proton version before installing; it must print one of these (with an \`-arm64\` suffix):
 

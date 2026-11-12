@@ -10,7 +10,7 @@ import unittest
 from contextlib import contextmanager
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
-from fixture import PINS, Fixture
+from fixture import ENGINES, UNITY_VERSION, Fixture
 from test_units import cpio, xar_pkg
 from bs_arm64.fetch import OPENXR_MEMBER, PLAYER_FILES, PLAYER_VARIATION
 
@@ -46,7 +46,7 @@ class QuietHandler(SimpleHTTPRequestHandler):
 class FetchFixture(Fixture):
     def setUp(self):
         super().setUp()
-        self.player = self.cache / f'unity-{PINS["UNITY_VERSION"]}'
+        self.player = self.cache / f"unity-{UNITY_VERSION}"
         shutil.rmtree(self.player)
         self.package = self.root / "downloads/Unity package.pkg"
         self.members = {f"./{PLAYER_VARIATION}/{name}": b"custom player " + name.encode()
@@ -146,11 +146,55 @@ class FetchTests(FetchFixture):
         self.run_cli("fetch", "--unity-src", str(self.package))
         self.assert_cached()
 
+class EngineFetchTests(FetchFixture):
+    """fetch <instance> is for the instance's engine; without an instance, for every engine."""
+
+    def other_engine(self) -> str:
+        return next(version for version in ENGINES if version != UNITY_VERSION)
+
+    def test_fetch_uses_the_instances_engine(self):
+        other = self.other_engine()
+        other_player = self.cache / f"unity-{other}"
+        shutil.rmtree(other_player)
+        self.set_game(other, "1.45.2_28848")
+        self.run_cli("fetch", "--unity-src", str(self.package))
+        for name in PLAYER_FILES:
+            self.assertEqual((other_player / PLAYER_VARIATION / name).read_bytes(),
+                             b"custom player " + name.encode())
+        self.assertFalse(self.player.exists())   # the 1.44.1 engine's player wasn't asked for
+
+    def test_fetch_unsupported_engine(self):
+        self.set_game("2022.3.33f1", "1.40.8_7400")
+        result = self.run_cli("fetch", "--unity-src", str(self.package), "--json", success=False)
+        self.assertEqual(self.json_lines(result)[-1]["code"], "UNSUPPORTED_ENGINE")
+        self.assertFalse(self.player.exists())
+
+    def test_fetch_without_instance_covers_every_engine(self):
+        # Everything but the 1.44.1 engine's player is cached; with no instance fetch wants that too.
+        # The source is a closed local port, so the test never reaches Unity's servers.
+        result = self.run_cli("fetch", "--json", instance=False, success=False,
+                              env=dict(self.env(), https_proxy="http://127.0.0.1:9", HTTPS_PROXY="http://127.0.0.1:9"))
+        error = self.json_lines(result)[-1]
+        self.assertEqual(error["code"], "DOWNLOAD_FAILED")
+        self.assertIn(f"Editor-{UNITY_VERSION}.pkg", error["message"])
+        for name in PLAYER_FILES:
+            self.write(self.player / PLAYER_VARIATION / name, b"cached")
+        self.run_cli("fetch", instance=False)
+
+    def test_package_without_instance_needs_the_instance(self):
+        if len(ENGINES) < 2:
+            self.skipTest("one engine: the package can only be that engine's")
+        result = self.run_cli("fetch", "--unity-src", str(self.package), "--json", instance=False, success=False)
+        error = self.json_lines(result)[-1]
+        self.assertEqual(error["code"], "NOT_AN_INSTANCE")
+        self.assertIn("fetch <Beat Saber instance dir>", error["message"])
+        self.assertFalse(self.player.exists())
+
 
 class OpenXRFetchTests(FetchFixture):
     def setUp(self):
         super().setUp()
-        self.openxr = self.cache / f'unity-openxr-{PINS["UNITY_OPENXR_VERSION"]}/UnityOpenXR.dll'
+        self.openxr = self.cache / f'unity-openxr-{ENGINES[UNITY_VERSION]["OPENXR_VERSION"]}/UnityOpenXR.dll'
         self.openxr.unlink()
         self.xr_package = self.package.parent / "OpenXR package.tgz"
         self.write_openxr_package()

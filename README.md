@@ -7,7 +7,7 @@
 
 Run Beat Saber as a **native Windows ARM64** program on ARM64 Linux under Proton, tested on the
 **Steam Frame**, instead of emulating the x64 build with FEX. Every game version on Unity 6000.0.40f1
-works, which means 1.40.9 through 1.44.1 (see [Game versions](#game-versions)).
+or 6000.3.19f1 works, which means 1.40.9 through 1.45.3 (see [Game versions](#game-versions)).
 
 The game's engine and C# code both run natively. Only Proton's small `steam.exe` launcher stays x64.
 
@@ -51,20 +51,27 @@ you copy `UserData` over from a Windows install.
 | Menu, maps (official), audio, visuals | ✅ |
 | Steam (login, ownership, platform init, online services) | ✅ |
 | OpenXR on SteamVR, controllers, recenter | ✅ |
-| Mods: BSIPA 4.3.7 + Harmony (tested: SiraUtil, BSML, SongCore, BS Utils) | ✅ on 1.41.1 and later |
+| Mods: BSIPA 4.3.7 + Harmony (tested: SiraUtil, BSML, SongCore, BS Utils) | ✅ on 1.41.1 – 1.44.1; BeatMods has no mods for 1.45.x yet (see [Game versions](#game-versions)) |
 | Burst-compiled code | ⚠️ runs as managed code (no ARM64 Burst library) |
 | LIV mixed-reality capture | ❌ not available |
 
 ## Game versions
 
-The native runtime depends on the game's Unity engine, not on its version. Tested on the Frame, to the
-main menu with Steam and VR:
+The native runtime depends on the game's Unity engine, not on its version. The installer reads the
+engine from the instance and downloads that engine's ARM64 player. Tested on the Frame, to the main
+menu with Steam and VR:
 
-| Beat Saber | Without mods | With mods |
-|---|---|---|
-| 1.40.8 and older | ❌ Unity 2022.3.33f1, the installer refuses it | |
-| 1.40.9 – 1.40.13 | ✅ | BeatMods has no mods for these versions |
-| 1.41.1 – 1.44.1 | ✅ | ✅ |
+| Beat Saber | Unity | Without mods | With mods |
+|---|---|---|---|
+| 1.40.8 and older | 2022.3.33f1 | ❌ the installer refuses it | |
+| 1.40.9 – 1.40.13 | 6000.0.40f1 | ✅ | BeatMods has no mods for these versions |
+| 1.41.1 – 1.44.1 | 6000.0.40f1 | ✅ | ✅ |
+| 1.45.1 – 1.45.2 | 6000.3.19f1 | ✅ | BeatMods has no mods for these versions yet. BSIPA works: unofficial ports built for 1.45.1 load on 1.45.2 |
+| 1.45.3 | 6000.3.19f1 | ✅ | BeatMods has no mods for this version yet; not tested |
+
+On 1.45.1 through 1.45.3, Unity's OpenXR plugin is one version older than the one the game ships, because
+Unity stopped publishing an ARM64 build of it (see
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#openxr)).
 
 ## How it works
 

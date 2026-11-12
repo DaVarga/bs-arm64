@@ -7,6 +7,7 @@ from .errors import Code, Error
 from .fetch import fetch
 from .instance import Instance
 from .output import out
+from .pins import Engine, Pins
 
 PLUGINS = "Beat Saber_Data/Plugins/ARM64"   # where the ARM64 player looks for native plugins
 
@@ -22,11 +23,7 @@ BSIPA_FILES = ("winhttp.dll", "Libs/MonoMod.Core.dll")
 def install(instance: Instance, setup: Setup, mods: bool) -> None:
     pins, proton, prefix = setup.pins, setup.proton, setup.prefix
     # Everything that can fail is checked before the instance is changed.
-    engine = instance.engine_version()
-    if engine != pins.unity_version:
-        raise Error(Code.UNSUPPORTED_ENGINE,
-                    f"instance is Unity {engine or 'unknown'} (Beat Saber {instance.game_version()}); "
-                    f"this runtime is built for Unity {pins.unity_version}")
+    engine = supported_engine(instance, pins)
     # lsteamclient_a64/wineopenxr_a64 talk to this Proton's unix libraries: only tested builds.
     if not proton.is_tested(pins.proton_tags):
         raise Error(Code.PROTON_UNTESTED,
@@ -41,7 +38,7 @@ def install(instance: Instance, setup: Setup, mods: bool) -> None:
         out.log(f"creating the Wine prefix in {prefix.compatdata}")
         proton.create_prefix(prefix.compatdata, setup.steam_root)
     prefix.wait_idle()
-    fetched = fetch(setup.cache, pins, setup.unity_src, setup.openxr_src)
+    fetched = fetch(setup.cache, engine, setup.unity_src, setup.openxr_src)
 
     out.log(f"installing into {instance.path}")
     a = setup.artifacts
@@ -79,6 +76,17 @@ def install(instance: Instance, setup: Setup, mods: bool) -> None:
     out.log("done")
     if sys.stdout.isatty():  # run by hand, not from a launcher such as BSManager
         out.log(f"start with: bs-arm64.sh launch '{instance.path}'")
+
+
+def supported_engine(instance: Instance, pins: Pins) -> Engine:
+    """The instance's Unity engine, which decides the player and OpenXR plugin to use."""
+    version = instance.engine_version()
+    engine = pins.engine(version)
+    if not engine:
+        raise Error(Code.UNSUPPORTED_ENGINE,
+                    f"instance is Unity {version or 'unknown'} (Beat Saber {instance.game_version()}); "
+                    f"this release supports Unity {pins.engine_versions()}")
+    return engine
 
 
 def uninstall(instance: Instance, setup: Setup) -> None:

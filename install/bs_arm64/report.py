@@ -25,7 +25,7 @@ def status(instance: Instance, setup: Setup) -> dict:
         "version": pins.version(),
         "gameVersion": instance.game_version(),
         "engine": engine,
-        "engineSupported": engine == setup.pins.unity_version,
+        "engineSupported": setup.pins.engine(engine) is not None,
         "bsipa": instance.has_bsipa(),
         "installed": installed,
         "mods": installed and instance.mods_enabled(),
@@ -75,7 +75,7 @@ def doctor(instance: Instance | None, setup: Setup) -> dict[str, dict[str, str]]
     }
     if instance:
         engine = instance.engine_version() or "unknown"
-        supported = engine == setup.pins.unity_version
+        supported = setup.pins.engine(engine) is not None
         sections["Instance"] = {
             "path": str(instance.path),
             "Beat Saber": instance.game_version(),

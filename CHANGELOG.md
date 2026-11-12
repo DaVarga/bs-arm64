@@ -3,6 +3,23 @@
 All notable changes to bs-arm64. Each release lists the Proton versions it was tested with (see its
 release notes).
 
+## [Unreleased]
+
+### Added
+- Beat Saber 1.45.1 through 1.45.3 (Unity 6000.3.19f1). The built DLLs don't depend on the Unity engine,
+  so one release now covers both engines: `versions.env` lists them (`UNITY_VERSIONS`) with each
+  one's player changeset and OpenXR package version, and `install` picks the set for the instance's
+  engine. Versions on Unity 6000.0.40f1 install exactly what they did before.
+- On Unity 6000.3.19f1 the OpenXR plugin is com.unity.xr.openxr 1.16.1, not the 1.17.1 the game
+  ships: Unity publishes no ARM64 build after 1.16.1 (see `docs/ARCHITECTURE.md`, OpenXR).
+
+### Changed
+- `fetch <instance>` fetches for the instance's engine; `fetch` without one fetches for every
+  supported engine. `fetch --unity-src` / `--openxr-src` now need the instance, since a package is
+  for one engine.
+- The `UNSUPPORTED_ENGINE` message names the supported engines:
+  `...; this release supports Unity 6000.0.40f1, 6000.3.19f1`.
+
 ## [0.4.1] – 2026-10-29
 
 ### Added

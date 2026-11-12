@@ -2,8 +2,9 @@
 
 ## Starting point
 
-Beat Saber 1.40.9 through 1.44.1 are Unity 6000.0.40f1 games, built with the Mono scripting backend
-for Windows x64. Under Proton 11.0 (ARM64) the game's x64 code (`UnityPlayer.dll`, Mono's JIT output,
+Beat Saber 1.40.9 through 1.44.1 are Unity 6000.0.40f1 games, 1.45.1 through 1.45.3 Unity
+6000.3.19f1 games, all built with the Mono scripting backend for Windows x64. Under Proton 11.0
+(ARM64) the game's x64 code (`UnityPlayer.dll`, Mono's JIT output,
 native plugins) runs through **FEX**, and that translated code takes most of the main thread's time:
 the game is CPU-bound.
 
@@ -33,8 +34,8 @@ Beat Saber.exe (Unity ARM64 WindowsPlayer.exe)
 
 ### Unity ARM64 player
 
-Downloaded from Unity's CDN (`UnitySetup-Windows-Mono-Support-for-Editor-6000.0.40f1.pkg`, the macOS
-target-support package). [`unity_pkg.py`](../install/bs_arm64/unity_pkg.py) streams it and keeps four
+Downloaded from Unity's CDN (`UnitySetup-Windows-Mono-Support-for-Editor-<engine>.pkg`, the macOS
+target-support package) for the instance's engine; `versions.env` lists the supported engines. [`unity_pkg.py`](../install/bs_arm64/unity_pkg.py) streams it and keeps four
 files: `WindowsPlayer.exe` (→ `Beat Saber.exe`), `UnityPlayer.dll`, `UnityCrashHandler64.exe` and
 `mono-2.0-bdwgc.dll`. The ARM64 player looks up native plugins in `Beat Saber_Data/Plugins/ARM64/`.
 
@@ -61,9 +62,15 @@ loads. `STEAMAPI_ARM64_LOG=1` logs init and the interface mapping to stderr.
 
 ### OpenXR
 
-**UnityOpenXR.dll.** Unity's OpenXR package (1.14.3, the version the game ships) has an ARM64 build
-only for UWP. [`openxr_patch.py`](../install/bs_arm64/openxr_patch.py) rewrites three imports so it
-loads in a desktop process. It loads `openxr_loader.dll` by bare name, so a copy sits next to the exe.
+**UnityOpenXR.dll.** Unity's OpenXR package has an ARM64 build only for UWP.
+[`openxr_patch.py`](../install/bs_arm64/openxr_patch.py) rewrites three imports so it loads in a
+desktop process. It loads `openxr_loader.dll` by bare name, so a copy sits next to the exe.
+
+The package version depends on the engine. On Unity 6000.0.40f1 it is 1.14.3, the version the game
+ships. On Unity 6000.3.19f1 the game ships 1.17.1, but Unity dropped the UWP ARM64 build after
+1.16.1 and has no other Windows ARM64 build. There, 1.16.1's native DLL runs with the game's 1.17.1
+managed code, which works as long as the interface between the two didn't change in between (tested
+on the Frame with 1.45.2 and 1.45.3). If OpenXR misbehaves on those versions only, look here first.
 
 **openxr_loader.dll.** Khronos publishes no desktop ARM64 loader, so we build 1.1.45 (the game's
 version) with llvm-mingw. [The patch](../patches/openxr-loader) makes it read

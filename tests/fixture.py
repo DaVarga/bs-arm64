@@ -13,6 +13,10 @@ INSTALLER = ROOT / "install/bs-arm64.sh"
 PINS = dict(line.split("=", 1) for line in (ROOT / "versions.env").read_text().splitlines()
             if line and not line.startswith("#") and "=" in line)
 PROTON_TAGS = PINS["PROTON_TAGS"].strip('"').split()
+# Unity engine -> its pins (UNITY_<version>_CHANGESET, UNITY_<version>_OPENXR_VERSION)
+ENGINES = {version: {name: PINS[f'UNITY_{version.replace(".", "_")}_{name}'] for name in ("CHANGESET", "OPENXR_VERSION")}
+           for version in PINS["UNITY_VERSIONS"].strip('"').split()}
+UNITY_VERSION = next(iter(ENGINES))   # the engine of the fixture's instance (Beat Saber 1.44.1)
 
 ARTIFACTS = ("lsteamclient_a64.dll", "wineopenxr_a64.dll", "steam_api64.dll", "openxr_loader.dll",
              "dxgi.dll", "d3d11.dll", "MonoPosixHelper.dll", "LIV_Bridge.dll",
@@ -66,8 +70,7 @@ class Fixture(unittest.TestCase):
         }
         for name, data in self.originals.items():
             self.write(self.instance / name, data)
-        self.write(self.instance / "Beat Saber_Data/globalgamemanagers",
-                   f'\0{PINS["UNITY_VERSION"]}\0 1.44.1_20239'.encode())
+        self.set_game(UNITY_VERSION, "1.44.1_20239")
         self.write(self.prefix / "pfx/drive_c/windows/system32/ucrtbase.dll", b"prefix UCRT unchanged")
         self.write(self.prefix / "pfx/user.reg", b"prefix runtime settings unchanged")
 
@@ -81,11 +84,15 @@ class Fixture(unittest.TestCase):
         self.write(self.steam / "config/loginusers.vdf",
                    f'"users"\n{{\n\t"{STEAM_USER}"\n\t{{\n\t\t"MostRecent"\t\t"1"\n\t}}\n}}\n'.encode())
 
-        unity = self.cache / f'unity-{PINS["UNITY_VERSION"]}' / "Variations/win_arm64_player_nondevelopment_mono"
-        for name in ("WindowsPlayer.exe", "UnityPlayer.dll", "UnityCrashHandler64.exe",
-                     "MonoBleedingEdge/EmbedRuntime/mono-2.0-bdwgc.dll"):
-            self.write(unity / name, b"ARM64 unity " + name.encode())
-        self.write(self.cache / f'unity-openxr-{PINS["UNITY_OPENXR_VERSION"]}/UnityOpenXR.dll', b"ARM64 XR")
+        # The download cache holds every engine's player and OpenXR plugin; the 1.44.1 engine's
+        # files have the contents they always had here, the others name their version.
+        for version, engine in ENGINES.items():
+            tag = b"" if version == UNITY_VERSION else version.encode() + b" "
+            unity = self.cache / f"unity-{version}" / "Variations/win_arm64_player_nondevelopment_mono"
+            for name in ("WindowsPlayer.exe", "UnityPlayer.dll", "UnityCrashHandler64.exe",
+                         "MonoBleedingEdge/EmbedRuntime/mono-2.0-bdwgc.dll"):
+                self.write(unity / name, b"ARM64 unity " + tag + name.encode())
+            self.write(self.cache / f'unity-openxr-{engine["OPENXR_VERSION"]}/UnityOpenXR.dll', b"ARM64 XR " + tag)
         for name in ARTIFACTS:
             self.write(self.artifacts / name, b"new artifact " + name.encode())
 
@@ -99,6 +106,10 @@ class Fixture(unittest.TestCase):
     def write_script(self, path: Path, text: str) -> None:
         self.write(path, text.encode())
         path.chmod(0o755)
+
+    def set_game(self, unity_version: str, build: str) -> None:
+        """What install reads from the instance: its Unity engine and Beat Saber build string."""
+        self.write(self.instance / "Beat Saber_Data/globalgamemanagers", f"\0{unity_version}\0 {build}".encode())
 
     def set_proton(self, build_tag: str) -> None:
         self.write(self.proton / "version", f"0 {build_tag}-arm64\n".encode())
@@ -117,9 +128,9 @@ class Fixture(unittest.TestCase):
         return env
 
     def run_cli(self, command: str, *extra: str, success: bool = True, paths: bool = True,
-                env: dict | None = None) -> subprocess.CompletedProcess:
-        """bash bs-arm64.sh <command> <instance> [--artifacts --cache --prefix --proton] <extra>"""
-        args = ["bash", str(INSTALLER), command, str(self.instance)]
+                env: dict | None = None, instance: bool = True) -> subprocess.CompletedProcess:
+        """bash bs-arm64.sh <command> [<instance>] [--artifacts --cache --prefix --proton] <extra>"""
+        args = ["bash", str(INSTALLER), command, *([str(self.instance)] if instance else [])]
         if paths:
             args += ["--artifacts", str(self.artifacts), "--cache", str(self.cache),
                      "--prefix", str(self.prefix), "--proton", str(self.proton)]

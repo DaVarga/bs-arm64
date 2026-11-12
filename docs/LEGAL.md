@@ -54,7 +54,7 @@ release.
 | File | Source | Why it isn't redistributed |
 |---|---|---|
 | Unity Windows ARM64 player (`WindowsPlayer.exe`, `UnityPlayer.dll`, `UnityCrashHandler64.exe`, `mono-2.0-bdwgc.dll`) | Unity's download CDN | Unity runtime binaries: the Unity licence lets them ship inside a game built by a Unity licensee, not on their own |
-| `UnityOpenXR.dll` (ARM64) | Unity package registry, com.unity.xr.openxr 1.14.3 | Unity Companion License; patched locally |
+| `UnityOpenXR.dll` (ARM64) | Unity package registry, com.unity.xr.openxr 1.14.3 or 1.16.1, by the game's Unity engine | Unity Companion License; patched locally |
 
 `install/bs-arm64.sh fetch` downloads and patches these on the user's machine.
 
